@@ -9,6 +9,7 @@ import { computeStreak, reviewedTodayCount } from "@/lib/streak";
 export const dynamic = "force-dynamic";
 
 const DAILY_GOAL = 20;
+const MASTERED_THRESHOLD_DAYS = 21;
 
 export default async function Home() {
   const supabase = createAdminClient();
@@ -16,7 +17,7 @@ export default async function Home() {
   const now = new Date().toISOString();
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
 
-  const [dueRes, totalRes, newRes, logsRes] = await Promise.all([
+  const [dueRes, totalRes, newRes, masteredRes, logsRes] = await Promise.all([
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
@@ -33,6 +34,11 @@ export default async function Home() {
       .eq("user_id", userId)
       .eq("status", "new"),
     supabase
+      .from("cards")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .gte("interval_days", MASTERED_THRESHOLD_DAYS),
+    supabase
       .from("review_logs")
       .select("reviewed_at")
       .eq("user_id", userId)
@@ -43,6 +49,8 @@ export default async function Home() {
   const due = dueRes.count ?? 0;
   const total = totalRes.count ?? 0;
   const fresh = newRes.count ?? 0;
+  const mastered = masteredRes.count ?? 0;
+  const masteredPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
   const reviewedAts = (logsRes.data ?? []).map((r) => r.reviewed_at as string);
   const streak = computeStreak(reviewedAts);
   const todayCount = reviewedTodayCount(reviewedAts);
@@ -106,6 +114,37 @@ export default async function Home() {
             🎉 今日の復習は完了
           </div>
         )}
+
+        {/* Mastered progress */}
+        <section className="rounded-2xl bg-success-soft p-4 flex flex-col gap-2">
+          <div className="flex items-baseline justify-between">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] uppercase tracking-widest text-success/80 font-semibold">
+                Mastered
+              </span>
+              <span className="text-xs text-muted">
+                {MASTERED_THRESHOLD_DAYS}日以上の間隔で復習できるカード
+              </span>
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-semibold tabular-nums text-success">
+                {mastered}
+              </span>
+              <span className="text-sm text-muted">/ {total}</span>
+            </div>
+          </div>
+          <div className="h-1.5 rounded-full bg-success/15 overflow-hidden">
+            <div
+              style={{ width: `${masteredPct}%` }}
+              className="h-full bg-success transition-[width] duration-500 ease-out"
+            />
+          </div>
+          {masteredPct > 0 && (
+            <span className="text-[11px] text-success/80 font-medium tabular-nums self-end">
+              {masteredPct}%
+            </span>
+          )}
+        </section>
 
         {/* Stats grid */}
         <section className="grid grid-cols-3 gap-3">

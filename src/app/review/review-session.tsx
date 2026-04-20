@@ -65,12 +65,22 @@ export function ReviewSession({
 
       // Advance the UI first so the next card is on-screen immediately.
       setRevealed(false);
-      if (!isLast) setIdx((i) => i + 1);
+      if (isLast) {
+        // Move past the end → component shows the "done" state.
+        setIdx(queue.length);
+      } else {
+        setIdx((i) => i + 1);
+      }
 
       // Run the server mutation off the render path.
       setTimeout(() => {
-        void grade(cardId, r).catch((e) => console.error("grade failed", e));
-        if (isLast) router.refresh();
+        const p = grade(cardId, r).catch((e) => {
+          console.error("grade failed", e);
+        });
+        // On the last card, wait for the grade to persist before refreshing,
+        // otherwise the refetch can see the pre-graded state and the card
+        // appears to "not have been reviewed".
+        if (isLast) p.finally(() => router.refresh());
       }, 0);
     },
     [card, idx, queue.length, revealed, router]

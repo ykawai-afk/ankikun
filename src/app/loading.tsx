@@ -14,6 +14,7 @@ export default function Loading() {
           <Skeleton className="w-40 h-20 mt-2 rounded-xl" />
         </section>
         <Skeleton className="h-16 rounded-3xl" />
+        <Skeleton className="h-20 rounded-2xl" />
         <section className="grid grid-cols-3 gap-3">
           <Skeleton className="h-20 rounded-2xl" />
           <Skeleton className="h-20 rounded-2xl" />

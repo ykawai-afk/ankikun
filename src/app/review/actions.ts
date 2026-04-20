@@ -53,4 +53,5 @@ export async function grade(cardId: string, rating: Rating) {
   });
 
   revalidatePath("/");
+  revalidatePath("/cards");
 }
