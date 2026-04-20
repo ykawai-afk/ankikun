@@ -1,17 +1,20 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getUserId } from "@/lib/user";
 import { ReviewCard } from "./review-card";
 import type { Card } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReviewPage() {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
+  const userId = getUserId();
   const now = new Date().toISOString();
 
   const { data: card } = await supabase
     .from("cards")
     .select("*")
+    .eq("user_id", userId)
     .neq("status", "suspended")
     .lte("next_review_at", now)
     .order("next_review_at", { ascending: true })
@@ -21,6 +24,7 @@ export default async function ReviewPage() {
   const { count } = await supabase
     .from("cards")
     .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
     .neq("status", "suspended")
     .lte("next_review_at", now);
 

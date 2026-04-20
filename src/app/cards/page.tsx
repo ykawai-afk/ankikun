@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getUserId } from "@/lib/user";
 import type { Card } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -12,10 +13,15 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default async function CardsPage() {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
+  const userId = getUserId();
+
   const { data: cards } = await supabase
     .from("cards")
-    .select("id, word, reading, part_of_speech, definition_ja, status, next_review_at, created_at")
+    .select(
+      "id, word, reading, part_of_speech, definition_ja, status, next_review_at, created_at"
+    )
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   const rows = (cards ?? []) as Pick<
@@ -33,7 +39,10 @@ export default async function CardsPage() {
   return (
     <main className="flex flex-1 flex-col p-6 gap-4 max-w-2xl mx-auto w-full">
       <header className="flex items-center justify-between">
-        <Link href="/" className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200">
+        <Link
+          href="/"
+          className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+        >
           ← ホーム
         </Link>
         <h1 className="text-lg font-semibold">カード ({rows.length})</h1>

@@ -2,17 +2,20 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getUserId } from "@/lib/user";
 import { schedule } from "@/lib/srs";
 import type { Card, Rating } from "@/lib/types";
 
 export async function grade(cardId: string, rating: Rating) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
+  const userId = getUserId();
 
   const { data: card, error } = await supabase
     .from("cards")
     .select("*")
     .eq("id", cardId)
+    .eq("user_id", userId)
     .single<Card>();
   if (error || !card) throw new Error("card not found");
 
@@ -40,7 +43,7 @@ export async function grade(cardId: string, rating: Rating) {
 
   await supabase.from("review_logs").insert({
     card_id: card.id,
-    user_id: card.user_id,
+    user_id: userId,
     rating,
     prev_interval: card.interval_days,
     new_interval: next.interval_days,

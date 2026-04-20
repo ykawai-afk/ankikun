@@ -1,8 +1,12 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getUserId } from "@/lib/user";
+
+export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
+  const userId = getUserId();
   const now = new Date().toISOString();
 
   const [{ count: dueCount }, { count: totalCount }, { count: newCount }] =
@@ -10,12 +14,17 @@ export default async function Home() {
       supabase
         .from("cards")
         .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
         .neq("status", "suspended")
         .lte("next_review_at", now),
-      supabase.from("cards").select("*", { count: "exact", head: true }),
       supabase
         .from("cards")
         .select("*", { count: "exact", head: true })
+        .eq("user_id", userId),
+      supabase
+        .from("cards")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
         .eq("status", "new"),
     ]);
 
@@ -25,13 +34,8 @@ export default async function Home() {
 
   return (
     <main className="flex flex-1 flex-col items-center p-8 gap-8 max-w-2xl mx-auto w-full">
-      <header className="w-full flex items-center justify-between">
+      <header className="w-full">
         <h1 className="text-3xl font-semibold tracking-tight">Ankikun</h1>
-        <form action="/auth/signout" method="post">
-          <button className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200">
-            ログアウト
-          </button>
-        </form>
       </header>
 
       <section className="w-full grid grid-cols-3 gap-3">
