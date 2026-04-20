@@ -1,65 +1,90 @@
-import Image from "next/image";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient();
+  const now = new Date().toISOString();
+
+  const [{ count: dueCount }, { count: totalCount }, { count: newCount }] =
+    await Promise.all([
+      supabase
+        .from("cards")
+        .select("*", { count: "exact", head: true })
+        .neq("status", "suspended")
+        .lte("next_review_at", now),
+      supabase.from("cards").select("*", { count: "exact", head: true }),
+      supabase
+        .from("cards")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "new"),
+    ]);
+
+  const due = dueCount ?? 0;
+  const total = totalCount ?? 0;
+  const newOnes = newCount ?? 0;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <main className="flex flex-1 flex-col items-center p-8 gap-8 max-w-2xl mx-auto w-full">
+      <header className="w-full flex items-center justify-between">
+        <h1 className="text-3xl font-semibold tracking-tight">Ankikun</h1>
+        <form action="/auth/signout" method="post">
+          <button className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200">
+            ログアウト
+          </button>
+        </form>
+      </header>
+
+      <section className="w-full grid grid-cols-3 gap-3">
+        <Stat label="Due" value={due} accent={due > 0} />
+        <Stat label="New" value={newOnes} />
+        <Stat label="Total" value={total} />
+      </section>
+
+      <section className="w-full flex flex-col gap-3">
+        {due > 0 ? (
+          <Link
+            href="/review"
+            className="h-14 rounded-2xl bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 flex items-center justify-center font-medium text-lg hover:opacity-90 transition"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+            復習を始める ({due})
+          </Link>
+        ) : (
+          <div className="h-14 rounded-2xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-center text-zinc-500">
+            今日の復習は完了
+          </div>
+        )}
+        <Link
+          href="/cards"
+          className="h-12 rounded-xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-center hover:bg-zinc-50 dark:hover:bg-zinc-900 transition"
+        >
+          すべてのカード
+        </Link>
+      </section>
+    </main>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  accent = false,
+}: {
+  label: string;
+  value: number;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border p-4 flex flex-col gap-1 ${
+        accent
+          ? "border-zinc-900 dark:border-white"
+          : "border-zinc-200 dark:border-zinc-800"
+      }`}
+    >
+      <div className="text-xs uppercase tracking-wide text-zinc-500">
+        {label}
+      </div>
+      <div className="text-3xl font-semibold tabular-nums">{value}</div>
     </div>
   );
 }
