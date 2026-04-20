@@ -7,23 +7,20 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const BATCH = 20;
+const BATCH = 15;
 
 const BatchOut = z.object({
-  items: z.array(
-    z.object({
-      word: z.string(),
-      etymology: z.string().nullable(),
-    })
-  ),
+  etymologies: z.array(z.string().nullable()),
 });
 
-const PROMPT = `日本人英語学習者向けに、以下の英単語それぞれの語源を1-2文の日本語で簡潔に返してください。
-- ラテン語/ギリシャ語/古英語/古フランス語など起源
-- 有効な接頭辞・語根・接尾辞 (例: "e- 「外へ」 + ludere 「遊ぶ」")
-- 関連語があれば1つ
-- 分からないものは etymology: null
-- 出力は入力と同じ word のみをキーに含めること`;
+const PROMPT = `日本人英語学習者向けに、渡された英単語それぞれの語源を1-2文の日本語で簡潔に書いてください。
+
+要件:
+- ラテン語/ギリシャ語/古英語/古フランス語など起源を明記
+- 意味のある接頭辞・語根・接尾辞を分解（例: "e- 「外へ」 + ludere 「遊ぶ」"）
+- 関連語があれば1つ添える
+- 明確な語源がわからない場合は null
+- 入力の順序と同じ順序で etymologies 配列を返すこと（N個入力なら N個返す）`;
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -61,44 +58,51 @@ export async function POST(req: NextRequest) {
 
   for (let i = 0; i < cards.length; i += BATCH) {
     const batch = cards.slice(i, i + BATCH);
-    const words = batch
-      .map((c, n) => `${n + 1}. ${c.word}${c.part_of_speech ? ` (${c.part_of_speech})` : ""}`)
+    const wordList = batch
+      .map(
+        (c, n) =>
+          `${n + 1}. ${c.word}${c.part_of_speech ? ` (${c.part_of_speech})` : ""}`
+      )
       .join("\n");
 
     try {
       const result = await anthropic.messages.parse({
         model: "claude-opus-4-7",
-        max_tokens: 4000,
+        max_tokens: 8000,
         system: PROMPT,
         messages: [
           {
             role: "user",
-            content: `以下の単語の語源をすべて返してください:\n\n${words}`,
+            content: `以下 ${batch.length} 単語の語源を同じ順序で返してください:\n\n${wordList}`,
           },
         ],
         output_config: { format: zodOutputFormat(BatchOut) },
       });
+
       const parsed = result.parsed_output;
       if (!parsed) throw new Error("missing parsed_output");
+      if (parsed.etymologies.length !== batch.length) {
+        throw new Error(
+          `length mismatch: expected ${batch.length}, got ${parsed.etymologies.length}`
+        );
+      }
 
-      const byWord = new Map<string, string | null>();
-      for (const item of parsed.items) byWord.set(item.word.toLowerCase(), item.etymology);
-
-      for (const c of batch) {
-        const ety = byWord.get(c.word.toLowerCase());
-        if (ety) {
-          const { error: upd } = await supabase
-            .from("cards")
-            .update({ etymology: ety })
-            .eq("id", c.id)
-            .eq("user_id", userId);
-          if (!upd) updated++;
-          else failures.push(`${c.word}: ${upd.message}`);
-        }
+      for (let j = 0; j < batch.length; j++) {
+        const ety = parsed.etymologies[j];
+        if (!ety) continue;
+        const { error: upd } = await supabase
+          .from("cards")
+          .update({ etymology: ety })
+          .eq("id", batch[j].id)
+          .eq("user_id", userId);
+        if (!upd) updated++;
+        else failures.push(`${batch[j].word}: ${upd.message}`);
       }
     } catch (err) {
       failures.push(
-        `batch ${i}-${i + BATCH}: ${err instanceof Error ? err.message : String(err)}`
+        `batch ${i}-${i + batch.length}: ${
+          err instanceof Error ? err.message : String(err)
+        }`
       );
     }
   }
@@ -110,6 +114,7 @@ export async function POST(req: NextRequest) {
     .is("etymology", null);
 
   return NextResponse.json({
+    processed: cards.length,
     updated,
     remaining: remaining ?? 0,
     failures: failures.slice(0, 5),
