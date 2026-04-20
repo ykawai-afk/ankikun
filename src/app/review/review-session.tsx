@@ -66,12 +66,11 @@ export function ReviewSession({
       const isLast = idx >= queue.length - 1;
 
       setFlash(r);
-      setTimeout(() => setFlash(null), 320);
+      setTimeout(() => setFlash(null), 280);
 
       setRevealed(false);
       if (isLast) {
         setIdx(queue.length);
-        // Celebrate the session completion
         confetti({
           particleCount: 120,
           spread: 80,
@@ -125,12 +124,12 @@ export function ReviewSession({
 
   if (!card) {
     return (
-      <main className="flex flex-1 min-h-svh flex-col items-center justify-center gap-6 p-8 pb-24">
-        <div className="text-6xl">🎉</div>
-        <p className="text-xl">お疲れさま</p>
+      <main className="flex flex-1 min-h-svh flex-col items-center justify-center gap-4 p-6 pb-20">
+        <div className="text-5xl">🎉</div>
+        <p className="text-base">お疲れさま</p>
         <Link
           href="/"
-          className="h-11 px-6 rounded-2xl bg-accent text-accent-foreground flex items-center text-sm font-medium active:scale-95 transition"
+          className="h-9 px-4 rounded-xl bg-accent text-accent-foreground flex items-center text-xs font-medium active:scale-95 transition"
         >
           ホームへ戻る
         </Link>
@@ -144,18 +143,17 @@ export function ReviewSession({
 
   const flashColor =
     flash === 0
-      ? "rgba(239,68,68,0.18)"
+      ? "rgba(239,68,68,0.16)"
       : flash === 1
-        ? "rgba(245,158,11,0.16)"
+        ? "rgba(245,158,11,0.14)"
         : flash === 2
-          ? "rgba(16,185,129,0.18)"
+          ? "rgba(16,185,129,0.16)"
           : flash === 3
-            ? "rgba(14,165,233,0.18)"
+            ? "rgba(14,165,233,0.16)"
             : "transparent";
 
   return (
     <div className="flex flex-col flex-1 min-h-svh relative">
-      {/* Rating flash overlay */}
       <div
         aria-hidden
         style={{ backgroundColor: flashColor }}
@@ -164,52 +162,52 @@ export function ReviewSession({
 
       {/* Top bar */}
       <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl">
-        <div className="max-w-2xl mx-auto flex items-center gap-3 h-14 px-5">
+        <div className="max-w-xl mx-auto flex items-center gap-2.5 h-11 px-4">
           <Link
             href="/"
             aria-label="ホームへ"
-            className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-surface-2 active:scale-95 transition"
+            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-2 active:scale-95 transition"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={15} />
           </Link>
-          <div className="flex-1 h-1 rounded-full bg-border overflow-hidden">
+          <div className="flex-1 h-[3px] rounded-full bg-border overflow-hidden">
             <div
               style={{ width: `${progress}%` }}
               className="h-full bg-accent transition-[width] duration-200 ease-out"
             />
           </div>
-          <span className="text-xs text-muted tabular-nums w-10 text-right">
+          <span className="text-[10px] text-muted tabular-nums w-8 text-right">
             {remaining}
           </span>
         </div>
       </div>
 
-      {/* Card area — no card-swap animation for instant feel */}
-      <main className="flex-1 max-w-2xl mx-auto w-full px-5 pb-40 flex flex-col">
+      {/* Card area */}
+      <main className="flex-1 max-w-xl mx-auto w-full px-4 pb-32 flex flex-col">
         <article
           key={card.id}
-          className="flex-1 flex flex-col items-center justify-center gap-6 py-10"
+          className="flex-1 flex flex-col items-center justify-center gap-4 py-6"
         >
-          <div className="flex flex-col items-center gap-3">
-            <div className="flex items-center gap-3">
-              <h2 className="text-5xl sm:text-6xl font-semibold tracking-tight text-center break-words">
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-center break-words">
                 {card.word}
               </h2>
               <button
                 onClick={speak}
                 aria-label="発音を聞く"
-                className="w-11 h-11 rounded-full bg-surface-2 flex items-center justify-center active:scale-95 hover:bg-border/50 transition"
+                className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center active:scale-95 hover:bg-border/50 transition"
               >
-                <Volume2 size={18} />
+                <Volume2 size={14} />
               </button>
             </div>
             {card.reading && (
-              <div className="text-sm text-muted font-mono">
+              <div className="text-xs text-muted font-mono">
                 /{card.reading.replace(/\//g, "")}/
               </div>
             )}
             {card.part_of_speech && (
-              <span className="text-[10px] uppercase tracking-widest text-muted border border-border rounded-full px-2.5 py-0.5">
+              <span className="text-[9px] uppercase tracking-widest text-muted border border-border rounded-full px-2 py-0.5">
                 {card.part_of_speech}
               </span>
             )}
@@ -218,28 +216,26 @@ export function ReviewSession({
           <AnimatePresence initial={false}>
             {revealed && (
               <motion.div
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.12, ease: "easeOut" }}
-                className="w-full max-w-md flex flex-col gap-4 mt-4"
+                className="w-full max-w-md flex flex-col gap-2.5 mt-2"
               >
-                <div className="rounded-2xl bg-surface-2 p-5 flex flex-col gap-2">
-                  <div className="text-lg leading-relaxed">
+                <div className="rounded-xl bg-surface-2 p-3 flex flex-col gap-1.5">
+                  <div className="text-sm leading-relaxed">
                     {card.definition_ja}
                   </div>
                   {card.definition_en && (
-                    <div className="text-sm text-muted">
+                    <div className="text-xs text-muted">
                       {card.definition_en}
                     </div>
                   )}
                 </div>
                 {card.example_en && (
-                  <blockquote className="rounded-2xl border border-border p-5 flex flex-col gap-1">
-                    <p className="text-sm leading-relaxed">
-                      {card.example_en}
-                    </p>
+                  <blockquote className="rounded-xl border border-border p-3 flex flex-col gap-0.5">
+                    <p className="text-xs leading-relaxed">{card.example_en}</p>
                     {card.example_ja && (
-                      <p className="text-sm text-muted leading-relaxed">
+                      <p className="text-xs text-muted leading-relaxed">
                         {card.example_ja}
                       </p>
                     )}
@@ -252,27 +248,27 @@ export function ReviewSession({
       </main>
 
       {/* Bottom action */}
-      <div className="fixed bottom-16 left-0 right-0 z-20 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-4">
-        <div className="max-w-2xl mx-auto px-5">
+      <div className="fixed bottom-12 left-0 right-0 z-20 bg-gradient-to-t from-background via-background to-transparent pt-6 pb-3">
+        <div className="max-w-xl mx-auto px-4">
           {!revealed ? (
             <button
               onClick={() => setRevealed(true)}
-              className="w-full h-14 rounded-2xl bg-accent text-accent-foreground font-medium text-lg active:scale-[0.98] transition shadow-[0_10px_30px_-10px_var(--accent)]"
+              className="w-full h-11 rounded-xl bg-accent text-accent-foreground font-medium text-sm active:scale-[0.98] transition shadow-[0_8px_24px_-10px_var(--accent)]"
             >
               答えを表示
-              <span className="ml-2 text-xs opacity-60">Space</span>
+              <span className="ml-2 text-[10px] opacity-60">Space</span>
             </button>
           ) : (
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-4 gap-1.5">
               {BUTTONS.map((b) => (
                 <button
                   key={b.rating}
                   onPointerDown={() => rate(b.rating)}
                   style={{ touchAction: "manipulation" }}
-                  className={`h-16 rounded-2xl font-semibold text-sm flex flex-col items-center justify-center gap-0.5 active:brightness-90 ${b.className}`}
+                  className={`h-12 rounded-xl font-semibold text-xs flex flex-col items-center justify-center gap-0 active:brightness-90 ${b.className}`}
                 >
                   <span>{b.label}</span>
-                  <span className="text-[10px] opacity-80 font-normal">
+                  <span className="text-[9px] opacity-80 font-normal">
                     {b.hint}
                   </span>
                 </button>
@@ -280,12 +276,12 @@ export function ReviewSession({
             </div>
           )}
           {revealed && (
-            <div className="flex items-center justify-center gap-2 mt-3 text-[10px] text-muted">
+            <div className="flex items-center justify-center gap-1.5 mt-2 text-[9px] text-muted">
               <Kbd>1</Kbd>
               <Kbd>2</Kbd>
               <Kbd>3</Kbd>
               <Kbd>4</Kbd>
-              <span className="ml-1">で評価</span>
+              <span className="ml-0.5">で評価</span>
             </div>
           )}
         </div>
@@ -296,7 +292,7 @@ export function ReviewSession({
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded border border-border bg-surface-2 text-[10px] font-mono">
+    <kbd className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded border border-border bg-surface-2 text-[9px] font-mono">
       {children}
     </kbd>
   );

@@ -106,18 +106,18 @@ export function CardModal({ card, onClose }: Props) {
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
           transition={{ type: "spring", stiffness: 400, damping: 36 }}
-          className="w-full sm:max-w-lg bg-background rounded-t-3xl sm:rounded-3xl p-5 pb-8 sm:pb-5 flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
+          className="w-full sm:max-w-md bg-background rounded-t-2xl sm:rounded-2xl p-4 pb-6 sm:pb-4 flex flex-col gap-3 max-h-[90vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
-          <header className="flex items-center justify-between sticky top-0 bg-background/90 backdrop-blur-xl -mx-5 px-5 pt-1 pb-2 z-10">
-            <h2 className="text-base font-semibold">カードを編集</h2>
+          <header className="flex items-center justify-between sticky top-0 bg-background/90 backdrop-blur-xl -mx-4 px-4 pt-0.5 pb-1.5 z-10">
+            <h2 className="text-xs font-semibold">カードを編集</h2>
             <button
               type="button"
               onClick={onClose}
               aria-label="閉じる"
-              className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-surface-2 active:scale-95 transition"
+              className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-surface-2 active:scale-95 transition"
             >
-              <X size={18} />
+              <X size={14} />
             </button>
           </header>
 
@@ -125,17 +125,17 @@ export function CardModal({ card, onClose }: Props) {
             <input
               value={draft.word}
               onChange={(e) => setDraft({ ...draft, word: e.target.value })}
-              className="w-full h-10 px-3 rounded-xl bg-surface-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+              className="w-full h-8 px-2.5 rounded-lg bg-surface-2 text-xs focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             <Field label="Reading (IPA)">
               <input
                 value={draft.reading ?? ""}
                 onChange={(e) => setDraft({ ...draft, reading: e.target.value })}
                 placeholder="/rʌn/"
-                className="w-full h-10 px-3 rounded-xl bg-surface-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent/30"
+                className="w-full h-8 px-2.5 rounded-lg bg-surface-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-accent/30"
               />
             </Field>
             <Field label="Part of speech">
@@ -145,7 +145,7 @@ export function CardModal({ card, onClose }: Props) {
                   setDraft({ ...draft, part_of_speech: e.target.value })
                 }
                 placeholder="noun, verb..."
-                className="w-full h-10 px-3 rounded-xl bg-surface-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+                className="w-full h-8 px-2.5 rounded-lg bg-surface-2 text-xs focus:outline-none focus:ring-2 focus:ring-accent/30"
               />
             </Field>
           </div>
@@ -157,42 +157,41 @@ export function CardModal({ card, onClose }: Props) {
                 setDraft({ ...draft, definition_ja: e.target.value })
               }
               rows={2}
-              className="w-full p-3 rounded-xl bg-surface-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"
+              className="w-full p-2.5 rounded-lg bg-surface-2 text-xs focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"
             />
           </Field>
 
           {error && (
-            <div className="rounded-xl bg-danger-soft text-danger text-sm p-3">
+            <div className="rounded-lg bg-danger-soft text-danger text-xs p-2">
               {error}
             </div>
           )}
 
-          {/* Actions */}
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-1.5 pt-1">
             <button
               type="button"
               onClick={toggleSuspend}
               disabled={pending}
-              className={`flex-1 h-11 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 transition active:scale-95 disabled:opacity-50 ${
+              className={`flex-1 h-9 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition active:scale-95 disabled:opacity-50 ${
                 suspended
                   ? "bg-success-soft text-success"
                   : "bg-surface-2 text-muted"
               }`}
             >
-              {suspended ? <Play size={14} /> : <Pause size={14} />}
+              {suspended ? <Play size={12} /> : <Pause size={12} />}
               {suspended ? "再開" : "suspend"}
             </button>
             <button
               type="button"
               onClick={remove}
               disabled={pending}
-              className={`flex-1 h-11 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 transition active:scale-95 disabled:opacity-50 ${
+              className={`flex-1 h-9 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition active:scale-95 disabled:opacity-50 ${
                 confirmingDelete
                   ? "bg-danger text-white"
                   : "bg-danger-soft text-danger"
               }`}
             >
-              <Trash2 size={14} />
+              <Trash2 size={12} />
               {confirmingDelete ? "本当に削除" : "削除"}
             </button>
           </div>
@@ -201,12 +200,12 @@ export function CardModal({ card, onClose }: Props) {
             type="button"
             onClick={save}
             disabled={pending}
-            className="h-12 rounded-2xl bg-accent text-accent-foreground font-semibold text-sm flex items-center justify-center gap-1.5 active:scale-[0.98] transition disabled:opacity-50 shadow-[0_10px_30px_-10px_var(--accent)]"
+            className="h-10 rounded-xl bg-accent text-accent-foreground font-semibold text-xs flex items-center justify-center gap-1 active:scale-[0.98] transition disabled:opacity-50 shadow-[0_8px_24px_-10px_var(--accent)]"
           >
             {pending ? (
-              <Loader2 size={16} className="animate-spin" />
+              <Loader2 size={14} className="animate-spin" />
             ) : (
-              <Save size={16} />
+              <Save size={14} />
             )}
             保存
           </button>
@@ -224,8 +223,8 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-[10px] uppercase tracking-widest text-muted font-semibold">
+    <label className="flex flex-col gap-1">
+      <span className="text-[9px] uppercase tracking-widest text-muted font-semibold">
         {label}
       </span>
       {children}

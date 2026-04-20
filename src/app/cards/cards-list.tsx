@@ -58,32 +58,32 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
   }, [cards, filter, query]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       {/* Search */}
       <div className="relative">
         <Search
-          size={16}
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-muted"
+          size={13}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
         />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="単語・意味で検索"
-          className="w-full h-11 pl-10 pr-4 rounded-2xl bg-surface-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+          className="w-full h-9 pl-8 pr-3 rounded-xl bg-surface-2 text-xs focus:outline-none focus:ring-2 focus:ring-accent/30"
         />
       </div>
 
       {/* Filter pills */}
-      <div className="flex gap-2 overflow-x-auto -mx-5 px-5 pb-1 scrollbar-hide">
+      <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 pb-1 scrollbar-hide">
         {FILTERS.map((f) => {
           const active = filter === f.key;
           return (
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
-              className={`h-8 px-3.5 rounded-full text-xs font-medium whitespace-nowrap transition active:scale-95 ${
+              className={`h-7 px-3 rounded-full text-[11px] font-medium whitespace-nowrap transition active:scale-95 ${
                 active
-                  ? "bg-accent text-accent-foreground shadow-[0_4px_12px_-4px_var(--accent)]"
+                  ? "bg-accent text-accent-foreground shadow-[0_3px_10px_-4px_var(--accent)]"
                   : "bg-surface-2 text-muted hover:text-foreground"
               }`}
             >
@@ -95,51 +95,51 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
 
       {/* List */}
       {filtered.length === 0 ? (
-        <div className="text-center text-muted py-16 text-sm">
+        <div className="text-center text-muted py-10 text-xs">
           {cards.length === 0 ? "まだカードがありません" : "該当なし"}
         </div>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-1.5">
           {filtered.map((c, i) => (
             <motion.li
               key={c.id}
-              initial={{ opacity: 0, y: 6 }}
+              initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{
-                duration: 0.22,
-                delay: Math.min(i * 0.015, 0.25),
+                duration: 0.18,
+                delay: Math.min(i * 0.012, 0.2),
                 ease: [0.16, 1, 0.3, 1],
               }}
               onClick={() => setSelected(c)}
-              className="rounded-2xl bg-surface p-4 border border-border/60 flex flex-col gap-1.5 cursor-pointer hover:border-accent/40 active:scale-[0.995] transition"
+              className="rounded-xl bg-surface p-3 border border-border/60 flex flex-col gap-1 cursor-pointer hover:border-accent/40 active:scale-[0.995] transition"
             >
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start justify-between gap-2">
                 <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                  <div className="flex items-baseline gap-2 flex-wrap">
-                    <span className="font-semibold text-lg tracking-tight break-words">
+                  <div className="flex items-baseline gap-1.5 flex-wrap">
+                    <span className="font-semibold text-sm tracking-tight break-words">
                       {c.word}
                     </span>
                     {c.reading && (
-                      <span className="text-xs text-muted font-mono">
+                      <span className="text-[10px] text-muted font-mono">
                         /{c.reading.replace(/\//g, "")}/
                       </span>
                     )}
                   </div>
                   {c.part_of_speech && (
-                    <span className="text-[10px] uppercase tracking-widest text-muted">
+                    <span className="text-[9px] uppercase tracking-widest text-muted">
                       {c.part_of_speech}
                     </span>
                   )}
                 </div>
                 <span
-                  className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 font-medium ${
+                  className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full shrink-0 font-medium ${
                     STATUS_STYLE[c.status] ?? ""
                   }`}
                 >
                   {STATUS_LABEL[c.status] ?? c.status}
                 </span>
               </div>
-              <div className="text-sm text-foreground/80 leading-relaxed">
+              <div className="text-xs text-foreground/80 leading-relaxed">
                 {c.definition_ja}
               </div>
             </motion.li>

@@ -1,6 +1,3 @@
-// 過去の復習回数を GitHub 風のグリッドで描画するコンポーネント.
-// 日本時間基準で "YYYY-MM-DD" に集計された map を受け取って固定構造で描画する.
-
 const WEEKS = 13;
 const DAYS_PER_WEEK = 7;
 const TOTAL = WEEKS * DAYS_PER_WEEK;
@@ -27,7 +24,6 @@ function levelClass(count: number): string {
 
 export function Heatmap({ countsByDay }: { countsByDay: Record<string, number> }) {
   const today = new Date();
-  // Line up "today" on the last column.
   const lastCell = today;
   const firstCell = shift(lastCell, -(TOTAL - 1));
 
@@ -38,7 +34,6 @@ export function Heatmap({ countsByDay }: { countsByDay: Record<string, number> }
     cells.push({ date: key, count: countsByDay[key] ?? 0 });
   }
 
-  // Render column-by-column (each column = 1 week, 7 days top→bottom)
   const columns: typeof cells[] = [];
   for (let c = 0; c < WEEKS; c++) {
     columns.push(cells.slice(c * DAYS_PER_WEEK, (c + 1) * DAYS_PER_WEEK));
@@ -48,28 +43,31 @@ export function Heatmap({ countsByDay }: { countsByDay: Record<string, number> }
   const activeDays = cells.filter((c) => c.count > 0).length;
 
   return (
-    <section className="rounded-2xl bg-surface-2 p-4 flex flex-col gap-3">
+    <section className="rounded-xl bg-surface-2 p-3 flex flex-col gap-2">
       <header className="flex items-baseline justify-between">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] uppercase tracking-widest text-muted">
+        <div className="flex flex-col">
+          <span className="text-[9px] uppercase tracking-widest text-muted">
             Activity
           </span>
-          <span className="text-sm">
-            過去{WEEKS}週間で <span className="font-semibold">{total}</span>{" "}
-            回復習 ({activeDays}日)
+          <span className="text-[11px]">
+            {WEEKS}週 · <span className="font-semibold">{total}</span>回 (
+            {activeDays}日)
           </span>
         </div>
         <Legend />
       </header>
 
-      <div className="grid grid-flow-col gap-1" style={{ gridTemplateColumns: `repeat(${WEEKS}, minmax(0,1fr))` }}>
+      <div
+        className="grid grid-flow-col gap-[3px]"
+        style={{ gridTemplateColumns: `repeat(${WEEKS}, minmax(0,1fr))` }}
+      >
         {columns.map((col, ci) => (
-          <div key={ci} className="grid grid-rows-7 gap-1">
+          <div key={ci} className="grid grid-rows-7 gap-[3px]">
             {col.map((cell) => (
               <div
                 key={cell.date}
                 title={`${cell.date} · ${cell.count}回`}
-                className={`aspect-square rounded-[3px] ${levelClass(cell.count)}`}
+                className={`aspect-square rounded-[2px] ${levelClass(cell.count)}`}
               />
             ))}
           </div>
@@ -81,13 +79,13 @@ export function Heatmap({ countsByDay }: { countsByDay: Record<string, number> }
 
 function Legend() {
   return (
-    <div className="flex items-center gap-1 text-[10px] text-muted">
+    <div className="flex items-center gap-0.5 text-[9px] text-muted">
       <span>少</span>
-      <span className="w-2.5 h-2.5 rounded-[2px] bg-border/50" />
-      <span className="w-2.5 h-2.5 rounded-[2px] bg-accent/25" />
-      <span className="w-2.5 h-2.5 rounded-[2px] bg-accent/55" />
-      <span className="w-2.5 h-2.5 rounded-[2px] bg-accent/80" />
-      <span className="w-2.5 h-2.5 rounded-[2px] bg-accent" />
+      <span className="w-2 h-2 rounded-[2px] bg-border/50" />
+      <span className="w-2 h-2 rounded-[2px] bg-accent/25" />
+      <span className="w-2 h-2 rounded-[2px] bg-accent/55" />
+      <span className="w-2 h-2 rounded-[2px] bg-accent/80" />
+      <span className="w-2 h-2 rounded-[2px] bg-accent" />
       <span>多</span>
     </div>
   );

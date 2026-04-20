@@ -59,25 +59,25 @@ export default async function Home() {
 
   return (
     <PageShell>
-      <div className="py-6 flex flex-col gap-7">
+      <div className="py-4 flex flex-col gap-5">
         {/* Streak + daily progress */}
-        <section className="flex items-center gap-3">
+        <section className="flex items-center gap-2">
           <StreakBadge days={streak} />
-          <div className="flex-1 rounded-2xl bg-surface-2 p-3 flex items-center gap-3">
-            <ProgressRing value={todayCount} max={DAILY_GOAL} size={52} stroke={5}>
-              <span className="text-[11px] font-semibold tabular-nums">
+          <div className="flex-1 rounded-xl bg-surface-2 p-2.5 flex items-center gap-2.5">
+            <ProgressRing value={todayCount} max={DAILY_GOAL} size={40} stroke={4}>
+              <span className="text-[10px] font-semibold tabular-nums">
                 {todayCount}
               </span>
             </ProgressRing>
             <div className="flex flex-col">
-              <span className="text-[10px] uppercase tracking-widest text-muted flex items-center gap-1">
-                <Target size={10} /> Daily goal
+              <span className="text-[9px] uppercase tracking-widest text-muted flex items-center gap-1">
+                <Target size={9} /> Daily goal
               </span>
-              <span className="text-sm font-medium">
+              <span className="text-xs font-medium">
                 {todayCount} / {DAILY_GOAL}
               </span>
               {todayCount >= DAILY_GOAL && (
-                <span className="text-[11px] text-success font-medium">
+                <span className="text-[10px] text-success font-medium">
                   達成！
                 </span>
               )}
@@ -86,15 +86,15 @@ export default async function Home() {
         </section>
 
         {/* Hero */}
-        <section className="flex flex-col items-start gap-1 pt-2">
-          <span className="inline-flex items-center gap-1.5 text-xs text-muted uppercase tracking-widest">
-            <Zap size={12} className="text-accent" /> Today
+        <section className="flex flex-col items-start gap-0.5">
+          <span className="inline-flex items-center gap-1 text-[10px] text-muted uppercase tracking-widest">
+            <Zap size={10} className="text-accent" /> Today
           </span>
-          <div className="flex items-baseline gap-3">
-            <span className="text-[88px] font-semibold tabular-nums tracking-tight leading-none bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent">
+          <div className="flex items-baseline gap-2">
+            <span className="text-[56px] font-semibold tabular-nums tracking-tight leading-none bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent">
               {due}
             </span>
-            <span className="text-lg text-muted">cards due</span>
+            <span className="text-sm text-muted">cards due</span>
           </div>
         </section>
 
@@ -102,54 +102,54 @@ export default async function Home() {
         {due > 0 ? (
           <Link
             href="/review"
-            className="group h-16 rounded-3xl bg-accent text-accent-foreground flex items-center justify-between px-6 active:scale-[0.98] transition shadow-[0_10px_30px_-10px_var(--accent)]"
+            className="group h-12 rounded-2xl bg-accent text-accent-foreground flex items-center justify-between px-4 active:scale-[0.98] transition shadow-[0_8px_24px_-10px_var(--accent)]"
           >
-            <span className="text-lg font-semibold tracking-tight">
+            <span className="text-sm font-semibold tracking-tight">
               復習を始める
             </span>
-            <span className="w-10 h-10 rounded-full bg-accent-foreground/15 flex items-center justify-center group-hover:translate-x-0.5 transition">
-              <ArrowRight size={18} />
+            <span className="w-8 h-8 rounded-full bg-accent-foreground/15 flex items-center justify-center group-hover:translate-x-0.5 transition">
+              <ArrowRight size={14} />
             </span>
           </Link>
         ) : (
-          <div className="h-16 rounded-3xl bg-success-soft border border-success/20 flex items-center justify-center text-success font-medium">
+          <div className="h-12 rounded-2xl bg-success-soft border border-success/20 flex items-center justify-center text-success text-sm font-medium">
             🎉 今日の復習は完了
           </div>
         )}
 
-        {/* Mastered progress */}
-        <section className="rounded-2xl bg-success-soft p-4 flex flex-col gap-2">
+        {/* Mastered */}
+        <section className="rounded-xl bg-success-soft p-3 flex flex-col gap-1.5">
           <div className="flex items-baseline justify-between">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] uppercase tracking-widest text-success/80 font-semibold">
+            <div className="flex flex-col">
+              <span className="text-[9px] uppercase tracking-widest text-success/80 font-semibold">
                 Mastered
               </span>
-              <span className="text-xs text-muted">
+              <span className="text-[10px] text-muted">
                 {MASTERED_THRESHOLD_DAYS}日以上の間隔で復習できるカード
               </span>
             </div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-semibold tabular-nums text-success">
+            <div className="flex items-baseline gap-0.5">
+              <span className="text-xl font-semibold tabular-nums text-success">
                 {mastered}
               </span>
-              <span className="text-sm text-muted">/ {total}</span>
+              <span className="text-xs text-muted">/ {total}</span>
             </div>
           </div>
-          <div className="h-1.5 rounded-full bg-success/15 overflow-hidden">
+          <div className="h-1 rounded-full bg-success/15 overflow-hidden">
             <div
               style={{ width: `${masteredPct}%` }}
               className="h-full bg-success transition-[width] duration-500 ease-out"
             />
           </div>
           {masteredPct > 0 && (
-            <span className="text-[11px] text-success/80 font-medium tabular-nums self-end">
+            <span className="text-[10px] text-success/80 font-medium tabular-nums self-end">
               {masteredPct}%
             </span>
           )}
         </section>
 
         {/* Stats grid */}
-        <section className="grid grid-cols-3 gap-3">
+        <section className="grid grid-cols-3 gap-2">
           <Stat label="New" value={fresh} tone="accent" />
           <Stat label="Total" value={total} />
           <Stat label="24h" value={todayCount} tone="flame" />
@@ -166,20 +166,20 @@ function StreakBadge({ days }: { days: number }) {
   const active = days > 0;
   return (
     <div
-      className={`flex items-center gap-1.5 rounded-full px-3 h-12 ${
+      className={`flex items-center gap-1 rounded-full px-2.5 h-10 ${
         active
-          ? "bg-gradient-to-br from-[#fbbf24] to-[#f97316] text-white shadow-[0_6px_16px_-6px_#f97316]"
+          ? "bg-gradient-to-br from-[#fbbf24] to-[#f97316] text-white shadow-[0_4px_12px_-4px_#f97316]"
           : "bg-surface-2 text-muted"
       }`}
     >
       <Flame
-        size={18}
+        size={14}
         fill={active ? "currentColor" : "none"}
         strokeWidth={active ? 1.8 : 2}
       />
       <div className="flex flex-col leading-none">
-        <span className="text-lg font-semibold tabular-nums">{days}</span>
-        <span className="text-[9px] uppercase tracking-widest opacity-90">
+        <span className="text-sm font-semibold tabular-nums">{days}</span>
+        <span className="text-[8px] uppercase tracking-widest opacity-90">
           streak
         </span>
       </div>
@@ -209,11 +209,11 @@ function Stat({
         ? "text-flame"
         : "text-foreground";
   return (
-    <div className={`rounded-2xl p-4 flex flex-col gap-1 ${bg}`}>
-      <div className="text-[10px] uppercase tracking-widest text-muted">
+    <div className={`rounded-xl p-2.5 flex flex-col gap-0.5 ${bg}`}>
+      <div className="text-[9px] uppercase tracking-widest text-muted">
         {label}
       </div>
-      <div className={`text-2xl font-semibold tabular-nums ${valueColor}`}>
+      <div className={`text-lg font-semibold tabular-nums ${valueColor}`}>
         {value}
       </div>
     </div>
