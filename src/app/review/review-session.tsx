@@ -60,15 +60,18 @@ export function ReviewSession({
   const rate = useCallback(
     (r: Rating) => {
       if (!revealed || !card) return;
-      void grade(card.id, r).catch((e) => console.error("grade failed", e));
-      if (idx < queue.length - 1) {
-        setIdx((i) => i + 1);
-        setRevealed(false);
-      } else {
-        router.refresh();
-        setIdx(0);
-        setRevealed(false);
-      }
+      const cardId = card.id;
+      const isLast = idx >= queue.length - 1;
+
+      // Advance the UI first so the next card is on-screen immediately.
+      setRevealed(false);
+      if (!isLast) setIdx((i) => i + 1);
+
+      // Run the server mutation off the render path.
+      setTimeout(() => {
+        void grade(cardId, r).catch((e) => console.error("grade failed", e));
+        if (isLast) router.refresh();
+      }, 0);
     },
     [card, idx, queue.length, revealed, router]
   );
@@ -229,8 +232,9 @@ export function ReviewSession({
               {BUTTONS.map((b) => (
                 <button
                   key={b.rating}
-                  onClick={() => rate(b.rating)}
-                  className={`h-16 rounded-2xl font-semibold text-sm flex flex-col items-center justify-center gap-0.5 active:scale-[0.96] transition ${b.className}`}
+                  onPointerDown={() => rate(b.rating)}
+                  style={{ touchAction: "manipulation" }}
+                  className={`h-16 rounded-2xl font-semibold text-sm flex flex-col items-center justify-center gap-0.5 active:brightness-90 ${b.className}`}
                 >
                   <span>{b.label}</span>
                   <span className="text-[10px] opacity-80 font-normal">
