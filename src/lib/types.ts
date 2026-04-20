@@ -1,0 +1,51 @@
+export type CardStatus = "new" | "learning" | "review" | "suspended";
+
+export type Card = {
+  id: string;
+  user_id: string;
+  word: string;
+  reading: string | null;
+  part_of_speech: string | null;
+  definition_ja: string;
+  definition_en: string | null;
+  example_en: string | null;
+  example_ja: string | null;
+  source_image_path: string | null;
+  source_context: string | null;
+  ease_factor: number;
+  interval_days: number;
+  repetitions: number;
+  next_review_at: string;
+  last_reviewed_at: string | null;
+  status: CardStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Rating = 0 | 1 | 2 | 3; // Again | Hard | Good | Easy
+
+export type ReviewLog = {
+  id: string;
+  card_id: string;
+  user_id: string;
+  rating: Rating;
+  prev_interval: number;
+  new_interval: number;
+  prev_ease: number;
+  new_ease: number;
+  reviewed_at: string;
+};
+
+export type IngestionStatus = "pending" | "processed" | "failed";
+
+export type Ingestion = {
+  id: string;
+  user_id: string;
+  image_path: string;
+  status: IngestionStatus;
+  raw_response: unknown | null;
+  cards_created: number;
+  error: string | null;
+  created_at: string;
+  processed_at: string | null;
+};
