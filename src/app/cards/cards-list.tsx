@@ -17,6 +17,7 @@ export type CardRow = Pick<
   | "next_review_at"
   | "created_at"
   | "source_image_path"
+  | "etymology"
 > & { image_url: string | null };
 
 const FILTERS: { key: "all" | Card["status"]; label: string }[] = [

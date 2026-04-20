@@ -12,6 +12,7 @@ export type Card = {
   example_ja: string | null;
   source_image_path: string | null;
   source_context: string | null;
+  etymology: string | null;
   ease_factor: number;
   interval_days: number;
   repetitions: number;

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, Volume2 } from "lucide-react";
+import { ArrowLeft, BookOpen, Volume2 } from "lucide-react";
 import confetti from "canvas-confetti";
 import type { Card, Rating } from "@/lib/types";
 import { grade } from "./actions";
@@ -240,6 +240,22 @@ export function ReviewSession({
                       </p>
                     )}
                   </blockquote>
+                )}
+                {card.etymology && (
+                  <div className="rounded-xl bg-accent-soft p-3 flex gap-2">
+                    <BookOpen
+                      size={13}
+                      className="text-accent shrink-0 mt-0.5"
+                    />
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-[9px] uppercase tracking-widest text-accent/80 font-semibold">
+                        語源
+                      </span>
+                      <p className="text-xs leading-relaxed">
+                        {card.etymology}
+                      </p>
+                    </div>
+                  </div>
                 )}
               </motion.div>
             )}

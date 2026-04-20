@@ -12,6 +12,7 @@ export type CsvCard = {
   definition_en: string | null;
   example_en: string | null;
   example_ja: string | null;
+  etymology: string | null;
 };
 
 export type CsvAddResult =
@@ -41,6 +42,7 @@ export async function addFromCsv(cards: CsvCard[]): Promise<CsvAddResult> {
     definition_en: c.definition_en?.trim() || null,
     example_en: c.example_en?.trim() || null,
     example_ja: c.example_ja?.trim() || null,
+    etymology: c.etymology?.trim() || null,
   }));
 
   const { error } = await supabase.from("cards").insert(rows);

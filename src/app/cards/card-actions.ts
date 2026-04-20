@@ -13,6 +13,7 @@ export type CardEditInput = {
   definition_en: string | null;
   example_en: string | null;
   example_ja: string | null;
+  etymology: string | null;
 };
 
 export type ActionResult =
@@ -42,6 +43,7 @@ export async function updateCard(
       definition_en: input.definition_en?.trim() || null,
       example_en: input.example_en?.trim() || null,
       example_ja: input.example_ja?.trim() || null,
+      etymology: input.etymology?.trim() || null,
     })
     .eq("id", cardId)
     .eq("user_id", userId);

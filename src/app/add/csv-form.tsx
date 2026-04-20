@@ -16,6 +16,7 @@ const SUPPORTED_COLUMNS = [
   "definition_en",
   "example_en",
   "example_ja",
+  "etymology",
 ] as const;
 
 type Parsed =
@@ -62,6 +63,7 @@ function parseCsv(text: string): Parsed {
       definition_en: r.definition_en?.trim() || null,
       example_en: r.example_en?.trim() || null,
       example_ja: r.example_ja?.trim() || null,
+      etymology: r.etymology?.trim() || null,
     });
   }
   if (rows.length === 0) {

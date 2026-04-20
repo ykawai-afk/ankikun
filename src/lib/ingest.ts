@@ -21,6 +21,7 @@ const WordSchema = z.object({
   definition_en: z.string().nullable(),
   example_en: z.string().nullable(),
   example_ja: z.string().nullable(),
+  etymology: z.string().nullable(),
 });
 
 const ExtractionSchema = z.object({
@@ -45,6 +46,7 @@ const SYSTEM_PROMPT = `あなたは日本人英語学習者向け単語カード
 - definition_en: 英英定義(短く)
 - example_en: その単語を使った自然な例文1つ
 - example_ja: example_enの自然な日本語訳
+- etymology: 語源（Latin/Greek/Old English/Old French等の起源、意味のある接頭辞・語根・接尾辞、関連語を1-2文で。例: "Latin 'elusus' (past participle of 'eludere': e-「外へ」+ ludere「遊ぶ」)。to avoid/escapeのイメージ"）。不明なら null
 - source_context: スクショの文脈(1文、なくてよければnull)`;
 
 export function pickMediaType(input: string): AllowedMediaType {
@@ -130,6 +132,7 @@ export async function processIngest({
       definition_en: w.definition_en,
       example_en: w.example_en,
       example_ja: w.example_ja,
+      etymology: w.etymology,
       source_image_path: imagePath,
       source_context: parsed.source_context,
     }));

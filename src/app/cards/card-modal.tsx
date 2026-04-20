@@ -34,6 +34,7 @@ export function CardModal({ card, onClose }: Props) {
         definition_en: null,
         example_en: null,
         example_ja: null,
+        etymology: card.etymology ?? null,
       });
       setError(null);
       setConfirmingDelete(false);
@@ -157,6 +158,18 @@ export function CardModal({ card, onClose }: Props) {
                 setDraft({ ...draft, definition_ja: e.target.value })
               }
               rows={2}
+              className="w-full p-2.5 rounded-lg bg-surface-2 text-xs focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"
+            />
+          </Field>
+
+          <Field label="語源">
+            <textarea
+              value={draft.etymology ?? ""}
+              onChange={(e) =>
+                setDraft({ ...draft, etymology: e.target.value })
+              }
+              rows={2}
+              placeholder="Latin 'elusus'..."
               className="w-full p-2.5 rounded-lg bg-surface-2 text-xs focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"
             />
           </Field>
