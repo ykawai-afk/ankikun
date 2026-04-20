@@ -3,29 +3,51 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
+  /* Neutrals — slightly warmer than pure zinc for paper-like feel */
+  --background: #fbfaf8;
   --foreground: #0a0a0a;
-  --muted: #737373;
+  --muted: #6b6b6b;
   --surface: #ffffff;
-  --surface-2: #fafafa;
-  --border: #e5e5e5;
-  --accent: #0a0a0a;
+  --surface-2: #f3f1ed;
+  --border: #e4e1db;
+
+  /* Primary accent: deep indigo — focus + memory (study-coded) */
+  --accent: #4f46e5;
   --accent-foreground: #ffffff;
-  --success: #16a34a;
-  --danger: #dc2626;
+  --accent-soft: #eef2ff;
+
+  /* Warmth / streak / reward */
+  --flame: #f97316;
+  --flame-soft: #fff7ed;
+
+  /* Semantic */
+  --success: #10b981;
+  --success-soft: #ecfdf5;
+  --danger: #ef4444;
+  --danger-soft: #fef2f2;
+  --warning: #f59e0b;
 }
 
 .dark {
-  --background: #000000;
+  --background: #0b0b0c;
   --foreground: #fafafa;
-  --muted: #a3a3a3;
-  --surface: #0a0a0a;
-  --surface-2: #141414;
-  --border: #262626;
-  --accent: #ffffff;
-  --accent-foreground: #0a0a0a;
-  --success: #22c55e;
-  --danger: #ef4444;
+  --muted: #a1a1a1;
+  --surface: #141416;
+  --surface-2: #1a1a1d;
+  --border: #26262a;
+
+  --accent: #818cf8;
+  --accent-foreground: #0b0b0c;
+  --accent-soft: #1e1b4b;
+
+  --flame: #fb923c;
+  --flame-soft: #2a1705;
+
+  --success: #34d399;
+  --success-soft: #052e1f;
+  --danger: #f87171;
+  --danger-soft: #2b0a0a;
+  --warning: #fbbf24;
 }
 
 @theme inline {
@@ -37,8 +59,14 @@
   --color-border: var(--border);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-flame: var(--flame);
+  --color-flame-soft: var(--flame-soft);
   --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
   --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo,
@@ -59,7 +87,6 @@ body {
   font-feature-settings: "cv11", "ss01";
 }
 
-/* subtle scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -72,7 +99,6 @@ body {
   background: transparent;
 }
 
-/* tap highlight off for buttons */
 button,
 a {
   -webkit-tap-highlight-color: transparent;
