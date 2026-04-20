@@ -1,17 +1,19 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
-import { ReviewCard } from "./review-card";
+import { ReviewSession } from "./review-session";
 import type { Card } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+const BATCH_SIZE = 30;
 
 export default async function ReviewPage() {
   const supabase = createAdminClient();
   const userId = getUserId();
   const now = new Date().toISOString();
 
-  const [{ data: card }, { count }] = await Promise.all([
+  const [{ data: cards }, { count }] = await Promise.all([
     supabase
       .from("cards")
       .select("*")
@@ -19,8 +21,8 @@ export default async function ReviewPage() {
       .neq("status", "suspended")
       .lte("next_review_at", now)
       .order("next_review_at", { ascending: true })
-      .limit(1)
-      .maybeSingle<Card>(),
+      .limit(BATCH_SIZE)
+      .returns<Card[]>(),
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
@@ -29,9 +31,12 @@ export default async function ReviewPage() {
       .lte("next_review_at", now),
   ]);
 
-  if (!card) {
+  const queue = cards ?? [];
+  const totalDue = count ?? queue.length;
+
+  if (queue.length === 0) {
     return (
-      <main className="flex flex-1 min-h-svh flex-col items-center justify-center gap-6 p-8">
+      <main className="flex flex-1 min-h-svh flex-col items-center justify-center gap-6 p-8 pb-24">
         <div className="text-6xl">🎉</div>
         <p className="text-xl">今日の復習は完了しました</p>
         <Link
@@ -44,6 +49,5 @@ export default async function ReviewPage() {
     );
   }
 
-  const totalDue = count ?? 1;
-  return <ReviewCard card={card} remaining={totalDue} totalDue={totalDue} />;
+  return <ReviewSession initialQueue={queue} totalDue={totalDue} />;
 }

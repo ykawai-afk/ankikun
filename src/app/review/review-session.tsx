@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, Volume2 } from "lucide-react";
 import type { Card, Rating } from "@/lib/types";
@@ -11,14 +12,12 @@ const BUTTONS: {
   rating: Rating;
   label: string;
   hint: string;
-  key: string;
   className: string;
 }[] = [
   {
     rating: 0,
     label: "Again",
     hint: "< 1分",
-    key: "1",
     className:
       "bg-red-500 hover:bg-red-500/90 text-white dark:bg-red-500/90 dark:hover:bg-red-500",
   },
@@ -26,7 +25,6 @@ const BUTTONS: {
     rating: 1,
     label: "Hard",
     hint: "短め",
-    key: "2",
     className:
       "bg-amber-500 hover:bg-amber-500/90 text-white dark:bg-amber-500/90",
   },
@@ -34,7 +32,6 @@ const BUTTONS: {
     rating: 2,
     label: "Good",
     hint: "標準",
-    key: "3",
     className:
       "bg-emerald-600 hover:bg-emerald-600/90 text-white dark:bg-emerald-500/90",
   },
@@ -42,42 +39,52 @@ const BUTTONS: {
     rating: 3,
     label: "Easy",
     hint: "長め",
-    key: "4",
     className:
       "bg-sky-600 hover:bg-sky-600/90 text-white dark:bg-sky-500/90",
   },
 ];
 
-export function ReviewCard({
-  card,
-  remaining,
+export function ReviewSession({
+  initialQueue,
   totalDue,
 }: {
-  card: Card;
-  remaining: number;
+  initialQueue: Card[];
   totalDue: number;
 }) {
+  const router = useRouter();
+  const [queue] = useState<Card[]>(initialQueue);
+  const [idx, setIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const card = queue[idx] as Card | undefined;
 
   const rate = useCallback(
     (r: Rating) => {
-      if (!revealed || pending) return;
-      startTransition(() => grade(card.id, r));
+      if (!revealed || !card) return;
+      // Fire-and-forget; optimistically advance in the UI.
+      void grade(card.id, r).catch((e) => console.error("grade failed", e));
+      if (idx < queue.length - 1) {
+        setIdx((i) => i + 1);
+        setRevealed(false);
+      } else {
+        // Queue exhausted for this batch — refetch the next slice.
+        router.refresh();
+        setIdx(0);
+        setRevealed(false);
+      }
     },
-    [card.id, pending, revealed]
+    [card, idx, queue.length, revealed, router]
   );
 
   const speak = useCallback(() => {
+    if (!card) return;
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     const u = new SpeechSynthesisUtterance(card.word);
     u.lang = "en-US";
     u.rate = 0.95;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
-  }, [card.word]);
+  }, [card]);
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -87,10 +94,10 @@ export function ReviewCard({
         return;
       }
       if (revealed) {
-        const idx = ["1", "2", "3", "4"].indexOf(e.key);
-        if (idx >= 0) {
+        const pos = ["1", "2", "3", "4"].indexOf(e.key);
+        if (pos >= 0) {
           e.preventDefault();
-          rate(idx as Rating);
+          rate(pos as Rating);
         }
       }
     };
@@ -98,14 +105,29 @@ export function ReviewCard({
     return () => window.removeEventListener("keydown", handler);
   }, [rate, revealed]);
 
-  const progress =
-    totalDue > 0
-      ? Math.max(0, Math.min(100, ((totalDue - remaining + 1) / totalDue) * 100))
-      : 0;
+  if (!card) {
+    // If the batch ended on the last refresh and totalDue was already drained
+    return (
+      <main className="flex flex-1 min-h-svh flex-col items-center justify-center gap-6 p-8 pb-24">
+        <div className="text-6xl">🎉</div>
+        <p className="text-xl">お疲れさま</p>
+        <Link
+          href="/"
+          className="h-11 px-6 rounded-2xl bg-accent text-accent-foreground flex items-center text-sm font-medium active:scale-95 transition"
+        >
+          ホームへ戻る
+        </Link>
+      </main>
+    );
+  }
+
+  const done = idx; // cards graded so far in this session
+  const progress = totalDue > 0 ? Math.min(100, (done / totalDue) * 100) : 0;
+  const remaining = Math.max(totalDue - done, 1);
 
   return (
     <div className="flex flex-col flex-1 min-h-svh">
-      {/* Top bar: back + progress */}
+      {/* Top bar */}
       <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl">
         <div className="max-w-2xl mx-auto flex items-center gap-3 h-14 px-5">
           <Link
@@ -119,7 +141,7 @@ export function ReviewCard({
             <motion.div
               initial={false}
               animate={{ width: `${progress}%` }}
-              transition={{ type: "spring", stiffness: 200, damping: 30 }}
+              transition={{ type: "spring", stiffness: 220, damping: 28 }}
               className="h-full bg-accent"
             />
           </div>
@@ -134,13 +156,12 @@ export function ReviewCard({
         <AnimatePresence mode="wait">
           <motion.article
             key={card.id}
-            initial={{ opacity: 0, y: 16, scale: 0.98 }}
+            initial={{ opacity: 0, y: 12, scale: 0.99 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -16, scale: 0.98 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            exit={{ opacity: 0, y: -12, scale: 0.99 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             className="flex-1 flex flex-col items-center justify-center gap-6 py-10"
           >
-            {/* Word + pronunciation */}
             <div className="flex flex-col items-center gap-3">
               <div className="flex items-center gap-3">
                 <h2 className="text-5xl sm:text-6xl font-semibold tracking-tight text-center break-words">
@@ -166,13 +187,12 @@ export function ReviewCard({
               )}
             </div>
 
-            {/* Meaning (revealed) */}
             <AnimatePresence initial={false}>
               {revealed && (
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   className="w-full max-w-md flex flex-col gap-4 mt-4"
                 >
                   <div className="rounded-2xl bg-surface-2 p-5 flex flex-col gap-2">
@@ -204,13 +224,13 @@ export function ReviewCard({
         </AnimatePresence>
       </main>
 
-      {/* Bottom action area */}
+      {/* Bottom action */}
       <div className="fixed bottom-16 left-0 right-0 z-20 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-4">
         <div className="max-w-2xl mx-auto px-5">
           {!revealed ? (
             <button
               onClick={() => setRevealed(true)}
-              className="w-full h-14 rounded-2xl bg-accent text-accent-foreground font-medium text-lg active:scale-[0.98] transition"
+              className="w-full h-14 rounded-2xl bg-accent text-accent-foreground font-medium text-lg active:scale-[0.98] transition shadow-[0_10px_30px_-10px_var(--accent)]"
             >
               答えを表示
               <span className="ml-2 text-xs opacity-60">Space</span>
@@ -221,8 +241,7 @@ export function ReviewCard({
                 <button
                   key={b.rating}
                   onClick={() => rate(b.rating)}
-                  disabled={pending}
-                  className={`h-16 rounded-2xl font-semibold text-sm flex flex-col items-center justify-center gap-0.5 active:scale-[0.97] transition disabled:opacity-50 ${b.className}`}
+                  className={`h-16 rounded-2xl font-semibold text-sm flex flex-col items-center justify-center gap-0.5 active:scale-[0.96] transition ${b.className}`}
                 >
                   <span>{b.label}</span>
                   <span className="text-[10px] opacity-80 font-normal">

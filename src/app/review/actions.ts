@@ -1,12 +1,13 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
 import { schedule } from "@/lib/srs";
 import type { Card, Rating } from "@/lib/types";
 
+// Best-effort background grade. The client optimistically advances its queue
+// and this updates the DB without forcing a re-render.
 export async function grade(cardId: string, rating: Rating) {
   const supabase = createAdminClient();
   const userId = getUserId();
@@ -51,6 +52,5 @@ export async function grade(cardId: string, rating: Rating) {
     new_ease: next.ease_factor,
   });
 
-  revalidatePath("/review");
-  redirect("/review");
+  revalidatePath("/");
 }

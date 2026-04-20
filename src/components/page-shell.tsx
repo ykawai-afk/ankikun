@@ -1,14 +1,16 @@
+import Link from "next/link";
+import { Plus } from "lucide-react";
 import { type ReactNode } from "react";
 import { ThemeToggle } from "./theme-toggle";
 
 export function PageShell({
   title,
   children,
-  rightSlot,
+  showAdd = true,
 }: {
   title?: string;
   children: ReactNode;
-  rightSlot?: ReactNode;
+  showAdd?: boolean;
 }) {
   return (
     <div className="flex flex-col flex-1 min-h-svh pb-20">
@@ -18,7 +20,15 @@ export function PageShell({
             {title ?? "Ankikun"}
           </h1>
           <div className="flex items-center gap-1">
-            {rightSlot}
+            {showAdd && (
+              <Link
+                href="/add"
+                aria-label="カードを追加"
+                className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-2 active:scale-95 transition"
+              >
+                <Plus size={20} />
+              </Link>
+            )}
             <ThemeToggle />
           </div>
         </div>
