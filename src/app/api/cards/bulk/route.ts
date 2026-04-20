@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     const word = s(c.word);
     const definition_ja = s(c.definition_ja);
     if (!word || !definition_ja) continue;
-    rows.push({
+    const row: Record<string, unknown> = {
       user_id: userId,
       word,
       reading: s(c.reading),
@@ -68,8 +68,10 @@ export async function POST(req: NextRequest) {
       definition_en: s(c.definition_en),
       example_en: s(c.example_en),
       example_ja: s(c.example_ja),
-      etymology: s(c.etymology),
-    });
+    };
+    const ety = s(c.etymology);
+    if (ety) row.etymology = ety;
+    rows.push(row);
   }
 
   if (rows.length === 0) {
