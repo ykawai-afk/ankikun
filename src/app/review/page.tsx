@@ -11,30 +11,32 @@ export default async function ReviewPage() {
   const userId = getUserId();
   const now = new Date().toISOString();
 
-  const { data: card } = await supabase
-    .from("cards")
-    .select("*")
-    .eq("user_id", userId)
-    .neq("status", "suspended")
-    .lte("next_review_at", now)
-    .order("next_review_at", { ascending: true })
-    .limit(1)
-    .maybeSingle<Card>();
-
-  const { count } = await supabase
-    .from("cards")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .neq("status", "suspended")
-    .lte("next_review_at", now);
+  const [{ data: card }, { count }] = await Promise.all([
+    supabase
+      .from("cards")
+      .select("*")
+      .eq("user_id", userId)
+      .neq("status", "suspended")
+      .lte("next_review_at", now)
+      .order("next_review_at", { ascending: true })
+      .limit(1)
+      .maybeSingle<Card>(),
+    supabase
+      .from("cards")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .neq("status", "suspended")
+      .lte("next_review_at", now),
+  ]);
 
   if (!card) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
+      <main className="flex flex-1 min-h-svh flex-col items-center justify-center gap-6 p-8">
+        <div className="text-6xl">🎉</div>
         <p className="text-xl">今日の復習は完了しました</p>
         <Link
           href="/"
-          className="h-11 px-6 rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 flex items-center"
+          className="h-11 px-6 rounded-2xl bg-accent text-accent-foreground flex items-center text-sm font-medium active:scale-95 transition"
         >
           ホームへ戻る
         </Link>
@@ -42,5 +44,6 @@ export default async function ReviewPage() {
     );
   }
 
-  return <ReviewCard card={card} remaining={count ?? 1} />;
+  const totalDue = count ?? 1;
+  return <ReviewCard card={card} remaining={totalDue} totalDue={totalDue} />;
 }
