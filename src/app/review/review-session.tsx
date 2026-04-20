@@ -60,13 +60,11 @@ export function ReviewSession({
   const rate = useCallback(
     (r: Rating) => {
       if (!revealed || !card) return;
-      // Fire-and-forget; optimistically advance in the UI.
       void grade(card.id, r).catch((e) => console.error("grade failed", e));
       if (idx < queue.length - 1) {
         setIdx((i) => i + 1);
         setRevealed(false);
       } else {
-        // Queue exhausted for this batch — refetch the next slice.
         router.refresh();
         setIdx(0);
         setRevealed(false);
@@ -106,7 +104,6 @@ export function ReviewSession({
   }, [rate, revealed]);
 
   if (!card) {
-    // If the batch ended on the last refresh and totalDue was already drained
     return (
       <main className="flex flex-1 min-h-svh flex-col items-center justify-center gap-6 p-8 pb-24">
         <div className="text-6xl">🎉</div>
@@ -121,7 +118,7 @@ export function ReviewSession({
     );
   }
 
-  const done = idx; // cards graded so far in this session
+  const done = idx;
   const progress = totalDue > 0 ? Math.min(100, (done / totalDue) * 100) : 0;
   const remaining = Math.max(totalDue - done, 1);
 
@@ -138,11 +135,9 @@ export function ReviewSession({
             <ArrowLeft size={18} />
           </Link>
           <div className="flex-1 h-1 rounded-full bg-border overflow-hidden">
-            <motion.div
-              initial={false}
-              animate={{ width: `${progress}%` }}
-              transition={{ type: "spring", stiffness: 220, damping: 28 }}
-              className="h-full bg-accent"
+            <div
+              style={{ width: `${progress}%` }}
+              className="h-full bg-accent transition-[width] duration-200 ease-out"
             />
           </div>
           <span className="text-xs text-muted tabular-nums w-10 text-right">
@@ -151,77 +146,71 @@ export function ReviewSession({
         </div>
       </div>
 
-      {/* Card area */}
+      {/* Card area — no card-swap animation for instant feel */}
       <main className="flex-1 max-w-2xl mx-auto w-full px-5 pb-40 flex flex-col">
-        <AnimatePresence mode="wait">
-          <motion.article
-            key={card.id}
-            initial={{ opacity: 0, y: 12, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -12, scale: 0.99 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="flex-1 flex flex-col items-center justify-center gap-6 py-10"
-          >
-            <div className="flex flex-col items-center gap-3">
-              <div className="flex items-center gap-3">
-                <h2 className="text-5xl sm:text-6xl font-semibold tracking-tight text-center break-words">
-                  {card.word}
-                </h2>
-                <button
-                  onClick={speak}
-                  aria-label="発音を聞く"
-                  className="w-11 h-11 rounded-full bg-surface-2 flex items-center justify-center active:scale-95 hover:bg-border/50 transition"
-                >
-                  <Volume2 size={18} />
-                </button>
-              </div>
-              {card.reading && (
-                <div className="text-sm text-muted font-mono">
-                  /{card.reading.replace(/\//g, "")}/
-                </div>
-              )}
-              {card.part_of_speech && (
-                <span className="text-[10px] uppercase tracking-widest text-muted border border-border rounded-full px-2.5 py-0.5">
-                  {card.part_of_speech}
-                </span>
-              )}
+        <article
+          key={card.id}
+          className="flex-1 flex flex-col items-center justify-center gap-6 py-10"
+        >
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex items-center gap-3">
+              <h2 className="text-5xl sm:text-6xl font-semibold tracking-tight text-center break-words">
+                {card.word}
+              </h2>
+              <button
+                onClick={speak}
+                aria-label="発音を聞く"
+                className="w-11 h-11 rounded-full bg-surface-2 flex items-center justify-center active:scale-95 hover:bg-border/50 transition"
+              >
+                <Volume2 size={18} />
+              </button>
             </div>
+            {card.reading && (
+              <div className="text-sm text-muted font-mono">
+                /{card.reading.replace(/\//g, "")}/
+              </div>
+            )}
+            {card.part_of_speech && (
+              <span className="text-[10px] uppercase tracking-widest text-muted border border-border rounded-full px-2.5 py-0.5">
+                {card.part_of_speech}
+              </span>
+            )}
+          </div>
 
-            <AnimatePresence initial={false}>
-              {revealed && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                  className="w-full max-w-md flex flex-col gap-4 mt-4"
-                >
-                  <div className="rounded-2xl bg-surface-2 p-5 flex flex-col gap-2">
-                    <div className="text-lg leading-relaxed">
-                      {card.definition_ja}
-                    </div>
-                    {card.definition_en && (
-                      <div className="text-sm text-muted">
-                        {card.definition_en}
-                      </div>
-                    )}
+          <AnimatePresence initial={false}>
+            {revealed && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.12, ease: "easeOut" }}
+                className="w-full max-w-md flex flex-col gap-4 mt-4"
+              >
+                <div className="rounded-2xl bg-surface-2 p-5 flex flex-col gap-2">
+                  <div className="text-lg leading-relaxed">
+                    {card.definition_ja}
                   </div>
-                  {card.example_en && (
-                    <blockquote className="rounded-2xl border border-border p-5 flex flex-col gap-1">
-                      <p className="text-sm leading-relaxed">
-                        {card.example_en}
-                      </p>
-                      {card.example_ja && (
-                        <p className="text-sm text-muted leading-relaxed">
-                          {card.example_ja}
-                        </p>
-                      )}
-                    </blockquote>
+                  {card.definition_en && (
+                    <div className="text-sm text-muted">
+                      {card.definition_en}
+                    </div>
                   )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.article>
-        </AnimatePresence>
+                </div>
+                {card.example_en && (
+                  <blockquote className="rounded-2xl border border-border p-5 flex flex-col gap-1">
+                    <p className="text-sm leading-relaxed">
+                      {card.example_en}
+                    </p>
+                    {card.example_ja && (
+                      <p className="text-sm text-muted leading-relaxed">
+                        {card.example_ja}
+                      </p>
+                    )}
+                  </blockquote>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </article>
       </main>
 
       {/* Bottom action */}

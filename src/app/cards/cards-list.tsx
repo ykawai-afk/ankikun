@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { Search, X, Image as ImageIcon } from "lucide-react";
+import { motion } from "motion/react";
+import { Search } from "lucide-react";
 import type { Card } from "@/lib/types";
 
 export type CardRow = Pick<
@@ -42,7 +42,6 @@ const STATUS_LABEL: Record<string, string> = {
 export function CardsList({ cards }: { cards: CardRow[] }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | Card["status"]>("all");
-  const [preview, setPreview] = useState<CardRow | null>(null);
 
   const filtered = useMemo(() => {
     return cards.filter((c) => {
@@ -109,113 +108,41 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
                 delay: Math.min(i * 0.015, 0.25),
                 ease: [0.16, 1, 0.3, 1],
               }}
-              className="rounded-2xl bg-surface p-4 border border-border/60 flex items-start gap-3"
+              className="rounded-2xl bg-surface p-4 border border-border/60 flex flex-col gap-1.5"
             >
-              <div className="flex-1 flex flex-col gap-1.5 min-w-0">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <span className="font-semibold text-lg tracking-tight break-words">
-                        {c.word}
-                      </span>
-                      {c.reading && (
-                        <span className="text-xs text-muted font-mono">
-                          /{c.reading.replace(/\//g, "")}/
-                        </span>
-                      )}
-                    </div>
-                    {c.part_of_speech && (
-                      <span className="text-[10px] uppercase tracking-widest text-muted">
-                        {c.part_of_speech}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="font-semibold text-lg tracking-tight break-words">
+                      {c.word}
+                    </span>
+                    {c.reading && (
+                      <span className="text-xs text-muted font-mono">
+                        /{c.reading.replace(/\//g, "")}/
                       </span>
                     )}
                   </div>
-                  <span
-                    className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 font-medium ${
-                      STATUS_STYLE[c.status] ?? ""
-                    }`}
-                  >
-                    {STATUS_LABEL[c.status] ?? c.status}
-                  </span>
+                  {c.part_of_speech && (
+                    <span className="text-[10px] uppercase tracking-widest text-muted">
+                      {c.part_of_speech}
+                    </span>
+                  )}
                 </div>
-                <div className="text-sm text-foreground/80 leading-relaxed">
-                  {c.definition_ja}
-                </div>
+                <span
+                  className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 font-medium ${
+                    STATUS_STYLE[c.status] ?? ""
+                  }`}
+                >
+                  {STATUS_LABEL[c.status] ?? c.status}
+                </span>
               </div>
-              {c.image_url ? (
-                <button
-                  type="button"
-                  onClick={() => setPreview(c)}
-                  aria-label="元画像を表示"
-                  className="group shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-surface-2 relative shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08)] active:scale-95 transition"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={c.image_url}
-                    alt=""
-                    loading="lazy"
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition" />
-                </button>
-              ) : (
-                <div
-                  aria-hidden
-                  className="shrink-0 w-16 h-16 rounded-xl bg-surface-2 flex items-center justify-center text-muted"
-                >
-                  <ImageIcon size={18} />
-                </div>
-              )}
+              <div className="text-sm text-foreground/80 leading-relaxed">
+                {c.definition_ja}
+              </div>
             </motion.li>
           ))}
         </ul>
       )}
-
-      {/* Preview modal */}
-      <AnimatePresence>
-        {preview?.image_url && (
-          <motion.div
-            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setPreview(null)}
-          >
-            <motion.button
-              type="button"
-              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition"
-              onClick={(e) => {
-                e.stopPropagation();
-                setPreview(null);
-              }}
-              aria-label="閉じる"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <X size={18} />
-            </motion.button>
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="max-w-3xl max-h-[85vh] flex flex-col items-center gap-3"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="relative w-auto h-auto max-h-[80vh] rounded-2xl overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={preview.image_url}
-                  alt=""
-                  className="max-h-[80vh] w-auto object-contain"
-                />
-              </div>
-              <p className="text-white/70 text-sm">{preview.word}</p>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
