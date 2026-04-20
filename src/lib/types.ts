@@ -1,5 +1,17 @@
 export type CardStatus = "new" | "learning" | "review" | "suspended";
 
+export type RelatedWord = {
+  word: string;
+  part_of_speech: string | null;
+  meaning_ja: string;
+};
+
+export type ExtraExample = {
+  en: string;
+  ja: string;
+  register: "formal" | "conversational" | "idiom" | null;
+};
+
 export type Card = {
   id: string;
   user_id: string;
@@ -13,6 +25,10 @@ export type Card = {
   source_image_path: string | null;
   source_context: string | null;
   etymology: string | null;
+  image_url: string | null;
+  related_words: RelatedWord[] | null;
+  extra_examples: ExtraExample[] | null;
+  tags: string[] | null;
   ease_factor: number;
   interval_days: number;
   repetitions: number;

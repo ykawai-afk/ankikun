@@ -1,12 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, BookOpen, Volume2 } from "lucide-react";
+import { ArrowLeft, BookOpen, GraduationCap, Volume2 } from "lucide-react";
 import confetti from "canvas-confetti";
-import type { Card, Rating } from "@/lib/types";
+import type {
+  Card,
+  ExtraExample,
+  Rating,
+  RelatedWord,
+} from "@/lib/types";
 import { grade } from "./actions";
 
 const BUTTONS: {
@@ -45,6 +50,12 @@ const BUTTONS: {
   },
 ];
 
+function clozeSentence(sentence: string, word: string): string {
+  const base = word.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+  const re = new RegExp(`\\b${base}\\w*\\b`, "gi");
+  return sentence.replace(re, "_____");
+}
+
 export function ReviewSession({
   initialQueue,
   totalDue,
@@ -57,6 +68,21 @@ export function ReviewSession({
   const [idx, setIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [flash, setFlash] = useState<null | Rating>(null);
+  const [cloze, setCloze] = useState(false);
+
+  useEffect(() => {
+    const stored =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("ankikun.cloze")
+        : null;
+    if (stored === "1") setCloze(true);
+  }, []);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("ankikun.cloze", cloze ? "1" : "0");
+    }
+  }, [cloze]);
+
   const card = queue[idx] as Card | undefined;
 
   const rate = useCallback(
@@ -122,6 +148,11 @@ export function ReviewSession({
     return () => window.removeEventListener("keydown", handler);
   }, [rate, revealed]);
 
+  const clozeFront = useMemo(() => {
+    if (!card || !cloze || !card.example_en) return null;
+    return clozeSentence(card.example_en, card.word);
+  }, [card, cloze]);
+
   if (!card) {
     return (
       <main className="flex flex-1 min-h-svh flex-col items-center justify-center gap-4 p-6 pb-20">
@@ -176,7 +207,19 @@ export function ReviewSession({
               className="h-full bg-accent transition-[width] duration-200 ease-out"
             />
           </div>
-          <span className="text-[10px] text-muted tabular-nums w-8 text-right">
+          <button
+            type="button"
+            onClick={() => setCloze((v) => !v)}
+            aria-pressed={cloze}
+            className={`h-6 px-2 rounded-full text-[10px] font-semibold transition active:scale-95 ${
+              cloze
+                ? "bg-accent text-accent-foreground"
+                : "bg-surface-2 text-muted"
+            }`}
+          >
+            Cloze
+          </button>
+          <span className="text-[10px] text-muted tabular-nums w-7 text-right">
             {remaining}
           </span>
         </div>
@@ -186,32 +229,61 @@ export function ReviewSession({
       <main className="flex-1 max-w-xl mx-auto w-full px-4 pb-32 flex flex-col">
         <article
           key={card.id}
-          className="flex-1 flex flex-col items-center justify-center gap-4 py-6"
+          className="flex-1 flex flex-col items-center justify-center gap-3 py-5"
         >
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex items-center gap-2">
-              <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-center break-words">
-                {card.word}
-              </h2>
-              <button
-                onClick={speak}
-                aria-label="発音を聞く"
-                className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center active:scale-95 hover:bg-border/50 transition"
-              >
-                <Volume2 size={14} />
-              </button>
+          {/* Tags */}
+          {card.tags && card.tags.length > 0 && (
+            <div className="flex gap-1 flex-wrap justify-center">
+              {card.tags.map((t) => (
+                <span
+                  key={t}
+                  className="text-[9px] uppercase tracking-widest text-accent bg-accent-soft rounded-full px-2 py-0.5"
+                >
+                  {t}
+                </span>
+              ))}
             </div>
-            {card.reading && (
-              <div className="text-xs text-muted font-mono">
-                /{card.reading.replace(/\//g, "")}/
-              </div>
-            )}
-            {card.part_of_speech && (
-              <span className="text-[9px] uppercase tracking-widest text-muted border border-border rounded-full px-2 py-0.5">
-                {card.part_of_speech}
+          )}
+
+          {/* Front */}
+          {cloze && clozeFront ? (
+            <div className="flex flex-col items-center gap-2 w-full max-w-md">
+              <span className="text-[10px] uppercase tracking-widest text-muted">
+                Cloze · この空欄は？
               </span>
-            )}
-          </div>
+              <p className="text-xl leading-relaxed text-center">
+                {clozeFront}
+              </p>
+              {card.example_ja && (
+                <p className="text-xs text-muted text-center">{card.example_ja}</p>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex items-center gap-2">
+                <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-center break-words">
+                  {card.word}
+                </h2>
+                <button
+                  onClick={speak}
+                  aria-label="発音を聞く"
+                  className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center active:scale-95 hover:bg-border/50 transition"
+                >
+                  <Volume2 size={14} />
+                </button>
+              </div>
+              {card.reading && (
+                <div className="text-xs text-muted font-mono">
+                  /{card.reading.replace(/\//g, "")}/
+                </div>
+              )}
+              {card.part_of_speech && (
+                <span className="text-[9px] uppercase tracking-widest text-muted border border-border rounded-full px-2 py-0.5">
+                  {card.part_of_speech}
+                </span>
+              )}
+            </div>
+          )}
 
           <AnimatePresence initial={false}>
             {revealed && (
@@ -219,8 +291,25 @@ export function ReviewSession({
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.12, ease: "easeOut" }}
-                className="w-full max-w-md flex flex-col gap-2.5 mt-2"
+                className="w-full max-w-md flex flex-col gap-2 mt-1"
               >
+                {cloze && (
+                  <div className="rounded-xl bg-accent-soft p-3 text-center">
+                    <span className="text-[10px] uppercase tracking-widest text-accent font-semibold">
+                      答え
+                    </span>
+                    <div className="text-2xl font-semibold tracking-tight mt-0.5 flex items-center justify-center gap-2">
+                      {card.word}
+                      <button
+                        onClick={speak}
+                        aria-label="発音を聞く"
+                        className="w-7 h-7 rounded-full bg-background flex items-center justify-center active:scale-95 hover:opacity-90 transition"
+                      >
+                        <Volume2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="rounded-xl bg-surface-2 p-3 flex flex-col gap-1.5">
                   <div className="text-sm leading-relaxed">
                     {card.definition_ja}
@@ -231,7 +320,7 @@ export function ReviewSession({
                     </div>
                   )}
                 </div>
-                {card.example_en && (
+                {card.example_en && !cloze && (
                   <blockquote className="rounded-xl border border-border p-3 flex flex-col gap-0.5">
                     <p className="text-xs leading-relaxed">{card.example_en}</p>
                     {card.example_ja && (
@@ -256,6 +345,12 @@ export function ReviewSession({
                       </p>
                     </div>
                   </div>
+                )}
+                {card.related_words && card.related_words.length > 0 && (
+                  <RelatedWordsPanel items={card.related_words} />
+                )}
+                {card.extra_examples && card.extra_examples.length > 0 && (
+                  <ExtraExamplesPanel items={card.extra_examples} />
                 )}
               </motion.div>
             )}
@@ -301,6 +396,63 @@ export function ReviewSession({
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function RelatedWordsPanel({ items }: { items: RelatedWord[] }) {
+  return (
+    <div className="rounded-xl bg-surface-2 p-3 flex flex-col gap-1.5">
+      <span className="text-[9px] uppercase tracking-widest text-muted font-semibold flex items-center gap-1">
+        <GraduationCap size={11} /> Word family
+      </span>
+      <ul className="flex flex-col gap-1">
+        {items.map((w, i) => (
+          <li
+            key={`${w.word}-${i}`}
+            className="flex items-baseline gap-2 text-xs"
+          >
+            <span className="font-semibold">{w.word}</span>
+            {w.part_of_speech && (
+              <span className="text-[10px] text-muted">{w.part_of_speech}</span>
+            )}
+            <span className="text-muted">{w.meaning_ja}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ExtraExamplesPanel({ items }: { items: ExtraExample[] }) {
+  const registerLabel = (r: ExtraExample["register"]) =>
+    r === "formal" ? "formal" : r === "conversational" ? "casual" : r === "idiom" ? "idiom" : null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[9px] uppercase tracking-widest text-muted font-semibold px-1">
+        他の例文
+      </span>
+      <div className="flex flex-col gap-1.5">
+        {items.map((e, i) => {
+          const reg = registerLabel(e.register);
+          return (
+            <blockquote
+              key={i}
+              className="rounded-xl border border-border p-2.5 flex flex-col gap-0.5"
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-xs leading-relaxed">{e.en}</p>
+                {reg && (
+                  <span className="text-[9px] uppercase tracking-widest text-muted shrink-0">
+                    {reg}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted leading-relaxed">{e.ja}</p>
+            </blockquote>
+          );
+        })}
       </div>
     </div>
   );

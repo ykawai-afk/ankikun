@@ -13,6 +13,7 @@ type Incoming = {
   example_en?: unknown;
   example_ja?: unknown;
   etymology?: unknown;
+  tags?: unknown;
 };
 
 function s(v: unknown): string | null {
@@ -71,6 +72,12 @@ export async function POST(req: NextRequest) {
     };
     const ety = s(c.etymology);
     if (ety) row.etymology = ety;
+    if (Array.isArray(c.tags)) {
+      const tagList = c.tags
+        .map((t) => (typeof t === "string" ? t.trim() : ""))
+        .filter((t) => t.length > 0);
+      if (tagList.length > 0) row.tags = tagList;
+    }
     rows.push(row);
   }
 

@@ -18,9 +18,10 @@ export type CardRow = Pick<
   | "created_at"
   | "source_image_path"
   | "etymology"
+  | "tags"
 > & { image_url: string | null };
 
-const FILTERS: { key: "all" | Card["status"]; label: string }[] = [
+const STATUS_FILTERS: { key: "all" | Card["status"]; label: string }[] = [
   { key: "all", label: "すべて" },
   { key: "new", label: "新規" },
   { key: "learning", label: "学習中" },
@@ -43,12 +44,22 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function CardsList({ cards }: { cards: CardRow[] }) {
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<"all" | Card["status"]>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | Card["status"]>("all");
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [selected, setSelected] = useState<CardRow | null>(null);
+
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of cards) {
+      if (c.tags) for (const t of c.tags) set.add(t);
+    }
+    return Array.from(set).sort();
+  }, [cards]);
 
   const filtered = useMemo(() => {
     return cards.filter((c) => {
-      if (filter !== "all" && c.status !== filter) return false;
+      if (statusFilter !== "all" && c.status !== statusFilter) return false;
+      if (tagFilter && !(c.tags ?? []).includes(tagFilter)) return false;
       if (!query.trim()) return true;
       const q = query.toLowerCase();
       return (
@@ -56,7 +67,7 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
         c.definition_ja.toLowerCase().includes(q)
       );
     });
-  }, [cards, filter, query]);
+  }, [cards, statusFilter, tagFilter, query]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -74,14 +85,14 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
         />
       </div>
 
-      {/* Filter pills */}
+      {/* Status filter */}
       <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 pb-1 scrollbar-hide">
-        {FILTERS.map((f) => {
-          const active = filter === f.key;
+        {STATUS_FILTERS.map((f) => {
+          const active = statusFilter === f.key;
           return (
             <button
               key={f.key}
-              onClick={() => setFilter(f.key)}
+              onClick={() => setStatusFilter(f.key)}
               className={`h-7 px-3 rounded-full text-[11px] font-medium whitespace-nowrap transition active:scale-95 ${
                 active
                   ? "bg-accent text-accent-foreground shadow-[0_3px_10px_-4px_var(--accent)]"
@@ -93,6 +104,38 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
           );
         })}
       </div>
+
+      {/* Tag filter */}
+      {allTags.length > 0 && (
+        <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 pb-1 scrollbar-hide">
+          <button
+            onClick={() => setTagFilter(null)}
+            className={`h-6 px-2.5 rounded-full text-[10px] font-medium whitespace-nowrap transition ${
+              tagFilter === null
+                ? "bg-foreground text-background"
+                : "bg-surface-2 text-muted"
+            }`}
+          >
+            全タグ
+          </button>
+          {allTags.map((t) => {
+            const active = tagFilter === t;
+            return (
+              <button
+                key={t}
+                onClick={() => setTagFilter(active ? null : t)}
+                className={`h-6 px-2.5 rounded-full text-[10px] font-medium whitespace-nowrap transition ${
+                  active
+                    ? "bg-accent text-accent-foreground"
+                    : "bg-accent-soft text-accent hover:opacity-90"
+                }`}
+              >
+                #{t}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* List */}
       {filtered.length === 0 ? (
@@ -108,7 +151,7 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{
                 duration: 0.18,
-                delay: Math.min(i * 0.012, 0.2),
+                delay: Math.min(i * 0.01, 0.15),
                 ease: [0.16, 1, 0.3, 1],
               }}
               onClick={() => setSelected(c)}
@@ -143,6 +186,18 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
               <div className="text-xs text-foreground/80 leading-relaxed">
                 {c.definition_ja}
               </div>
+              {c.tags && c.tags.length > 0 && (
+                <div className="flex gap-1 flex-wrap">
+                  {c.tags.map((t) => (
+                    <span
+                      key={t}
+                      className="text-[9px] text-accent bg-accent-soft rounded-full px-1.5 py-0.5"
+                    >
+                      #{t}
+                    </span>
+                  ))}
+                </div>
+              )}
             </motion.li>
           ))}
         </ul>

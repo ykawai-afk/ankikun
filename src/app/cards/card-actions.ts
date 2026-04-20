@@ -14,6 +14,7 @@ export type CardEditInput = {
   example_en: string | null;
   example_ja: string | null;
   etymology: string | null;
+  tags: string[] | null;
 };
 
 export type ActionResult =
@@ -44,6 +45,7 @@ export async function updateCard(
       example_en: input.example_en?.trim() || null,
       example_ja: input.example_ja?.trim() || null,
       etymology: input.etymology?.trim() || null,
+      tags: input.tags && input.tags.length > 0 ? input.tags : null,
     })
     .eq("id", cardId)
     .eq("user_id", userId);

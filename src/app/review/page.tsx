@@ -16,7 +16,9 @@ export default async function ReviewPage() {
   const [{ data: cards }, { count }] = await Promise.all([
     supabase
       .from("cards")
-      .select("*")
+      .select(
+        "id, user_id, word, reading, part_of_speech, definition_ja, definition_en, example_en, example_ja, source_image_path, source_context, etymology, image_url, related_words, extra_examples, tags, ease_factor, interval_days, repetitions, next_review_at, last_reviewed_at, status, created_at, updated_at"
+      )
       .eq("user_id", userId)
       .neq("status", "suspended")
       .lte("next_review_at", now)

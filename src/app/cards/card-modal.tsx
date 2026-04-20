@@ -35,6 +35,7 @@ export function CardModal({ card, onClose }: Props) {
         example_en: null,
         example_ja: null,
         etymology: card.etymology ?? null,
+        tags: card.tags ?? null,
       });
       setError(null);
       setConfirmingDelete(false);
@@ -171,6 +172,23 @@ export function CardModal({ card, onClose }: Props) {
               rows={2}
               placeholder="Latin 'elusus'..."
               className="w-full p-2.5 rounded-lg bg-surface-2 text-xs focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"
+            />
+          </Field>
+
+          <Field label="タグ（カンマ区切り）">
+            <input
+              value={(draft.tags ?? []).join(", ")}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  tags: e.target.value
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean),
+                })
+              }
+              placeholder="Emily in Paris, business"
+              className="w-full h-8 px-2.5 rounded-lg bg-surface-2 text-xs focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </Field>
 

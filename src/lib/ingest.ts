@@ -13,6 +13,18 @@ export const ALLOWED_MEDIA_TYPES = [
 
 export type AllowedMediaType = (typeof ALLOWED_MEDIA_TYPES)[number];
 
+const RelatedWordSchema = z.object({
+  word: z.string(),
+  part_of_speech: z.string().nullable(),
+  meaning_ja: z.string(),
+});
+
+const ExtraExampleSchema = z.object({
+  en: z.string(),
+  ja: z.string(),
+  register: z.enum(["formal", "conversational", "idiom"]).nullable(),
+});
+
 const WordSchema = z.object({
   word: z.string(),
   reading: z.string().nullable(),
@@ -22,6 +34,8 @@ const WordSchema = z.object({
   example_en: z.string().nullable(),
   example_ja: z.string().nullable(),
   etymology: z.string().nullable(),
+  related_words: z.array(RelatedWordSchema),
+  extra_examples: z.array(ExtraExampleSchema),
 });
 
 const ExtractionSchema = z.object({
@@ -47,6 +61,8 @@ const SYSTEM_PROMPT = `あなたは日本人英語学習者向け単語カード
 - example_en: その単語を使った自然な例文1つ
 - example_ja: example_enの自然な日本語訳
 - etymology: 語源（Latin/Greek/Old English/Old French等の起源、意味のある接頭辞・語根・接尾辞、関連語を1-2文で。例: "Latin 'elusus' (past participle of 'eludere': e-「外へ」+ ludere「遊ぶ」)。to avoid/escapeのイメージ"）。不明なら null
+- related_words: word family (同語根の派生語) を2-4個。例: elusive → [{word:"elude", part_of_speech:"verb", meaning_ja:"巧みに避ける"}, ...]。なければ空配列[]
+- extra_examples: 例文を文脈別に2-3個追加。register は "formal" / "conversational" / "idiom" のいずれか、判定不能ならnull。なければ空配列[]
 - source_context: スクショの文脈(1文、なくてよければnull)`;
 
 export function pickMediaType(input: string): AllowedMediaType {
@@ -133,6 +149,8 @@ export async function processIngest({
       example_en: w.example_en,
       example_ja: w.example_ja,
       etymology: w.etymology,
+      related_words: w.related_words.length > 0 ? w.related_words : null,
+      extra_examples: w.extra_examples.length > 0 ? w.extra_examples : null,
       source_image_path: imagePath,
       source_context: parsed.source_context,
     }));
