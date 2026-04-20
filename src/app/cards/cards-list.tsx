@@ -2,8 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Search, X } from "lucide-react";
-import Image from "next/image";
+import { Search, X, Image as ImageIcon } from "lucide-react";
 import type { Card } from "@/lib/types";
 
 export type CardRow = Pick<
@@ -143,22 +142,29 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
                   {c.definition_ja}
                 </div>
               </div>
-              {c.image_url && (
+              {c.image_url ? (
                 <button
                   type="button"
                   onClick={() => setPreview(c)}
                   aria-label="元画像を表示"
-                  className="shrink-0 w-14 h-14 rounded-xl overflow-hidden ring-1 ring-border relative bg-surface-2 active:scale-95 transition"
+                  className="group shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-surface-2 relative shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08)] active:scale-95 transition"
                 >
-                  <Image
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
                     src={c.image_url}
                     alt=""
-                    fill
-                    sizes="56px"
-                    className="object-cover"
-                    unoptimized
+                    loading="lazy"
+                    className="absolute inset-0 w-full h-full object-cover"
                   />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition" />
                 </button>
+              ) : (
+                <div
+                  aria-hidden
+                  className="shrink-0 w-16 h-16 rounded-xl bg-surface-2 flex items-center justify-center text-muted"
+                >
+                  <ImageIcon size={18} />
+                </div>
               )}
             </motion.li>
           ))}
