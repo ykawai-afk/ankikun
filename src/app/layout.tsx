@@ -17,6 +17,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Ankikun",
   description: "摩擦ゼロで続けられる英単語SRS",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Ankikun",
+  },
 };
 
 export const viewport: Viewport = {

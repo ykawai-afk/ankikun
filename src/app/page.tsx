@@ -4,7 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
 import { PageShell } from "@/components/page-shell";
 import { ProgressRing } from "@/components/progress-ring";
-import { computeStreak, reviewedTodayCount } from "@/lib/streak";
+import { Heatmap } from "@/components/heatmap";
+import { computeStreak, reviewedTodayCount, countsByDay } from "@/lib/streak";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export default async function Home() {
   const supabase = createAdminClient();
   const userId = getUserId();
   const now = new Date().toISOString();
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const ninetyDaysAgo = new Date(Date.now() - 100 * 86_400_000).toISOString();
 
   const [dueRes, totalRes, newRes, masteredRes, logsRes] = await Promise.all([
     supabase
@@ -42,7 +43,7 @@ export default async function Home() {
       .from("review_logs")
       .select("reviewed_at")
       .eq("user_id", userId)
-      .gte("reviewed_at", thirtyDaysAgo)
+      .gte("reviewed_at", ninetyDaysAgo)
       .order("reviewed_at", { ascending: false }),
   ]);
 
@@ -54,6 +55,7 @@ export default async function Home() {
   const reviewedAts = (logsRes.data ?? []).map((r) => r.reviewed_at as string);
   const streak = computeStreak(reviewedAts);
   const todayCount = reviewedTodayCount(reviewedAts);
+  const heatmap = countsByDay(reviewedAts);
 
   return (
     <PageShell>
@@ -152,6 +154,9 @@ export default async function Home() {
           <Stat label="Total" value={total} />
           <Stat label="24h" value={todayCount} tone="flame" />
         </section>
+
+        {/* Activity heatmap */}
+        <Heatmap countsByDay={heatmap} />
       </div>
     </PageShell>
   );

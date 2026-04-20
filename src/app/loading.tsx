@@ -20,6 +20,7 @@ export default function Loading() {
           <Skeleton className="h-20 rounded-2xl" />
           <Skeleton className="h-20 rounded-2xl" />
         </section>
+        <Skeleton className="h-36 rounded-2xl" />
       </div>
     </PageShell>
   );

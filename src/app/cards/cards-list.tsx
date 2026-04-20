@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { Search } from "lucide-react";
 import type { Card } from "@/lib/types";
+import { CardModal } from "./card-modal";
 
 export type CardRow = Pick<
   Card,
@@ -42,6 +43,7 @@ const STATUS_LABEL: Record<string, string> = {
 export function CardsList({ cards }: { cards: CardRow[] }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | Card["status"]>("all");
+  const [selected, setSelected] = useState<CardRow | null>(null);
 
   const filtered = useMemo(() => {
     return cards.filter((c) => {
@@ -108,7 +110,8 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
                 delay: Math.min(i * 0.015, 0.25),
                 ease: [0.16, 1, 0.3, 1],
               }}
-              className="rounded-2xl bg-surface p-4 border border-border/60 flex flex-col gap-1.5"
+              onClick={() => setSelected(c)}
+              className="rounded-2xl bg-surface p-4 border border-border/60 flex flex-col gap-1.5 cursor-pointer hover:border-accent/40 active:scale-[0.995] transition"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex flex-col gap-0.5 min-w-0 flex-1">
@@ -142,6 +145,10 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
             </motion.li>
           ))}
         </ul>
+      )}
+
+      {selected && (
+        <CardModal card={selected} onClose={() => setSelected(null)} />
       )}
     </div>
   );

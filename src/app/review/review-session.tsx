@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, Volume2 } from "lucide-react";
+import confetti from "canvas-confetti";
 import type { Card, Rating } from "@/lib/types";
 import { grade } from "./actions";
 
@@ -55,6 +56,7 @@ export function ReviewSession({
   const [queue] = useState<Card[]>(initialQueue);
   const [idx, setIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
+  const [flash, setFlash] = useState<null | Rating>(null);
   const card = queue[idx] as Card | undefined;
 
   const rate = useCallback(
@@ -63,23 +65,28 @@ export function ReviewSession({
       const cardId = card.id;
       const isLast = idx >= queue.length - 1;
 
-      // Advance the UI first so the next card is on-screen immediately.
+      setFlash(r);
+      setTimeout(() => setFlash(null), 320);
+
       setRevealed(false);
       if (isLast) {
-        // Move past the end → component shows the "done" state.
         setIdx(queue.length);
+        // Celebrate the session completion
+        confetti({
+          particleCount: 120,
+          spread: 80,
+          startVelocity: 45,
+          origin: { x: 0.5, y: 0.7 },
+          colors: ["#4f46e5", "#818cf8", "#f97316", "#fbbf24", "#10b981"],
+        });
       } else {
         setIdx((i) => i + 1);
       }
 
-      // Run the server mutation off the render path.
       setTimeout(() => {
         const p = grade(cardId, r).catch((e) => {
           console.error("grade failed", e);
         });
-        // On the last card, wait for the grade to persist before refreshing,
-        // otherwise the refetch can see the pre-graded state and the card
-        // appears to "not have been reviewed".
         if (isLast) p.finally(() => router.refresh());
       }, 0);
     },
@@ -135,8 +142,26 @@ export function ReviewSession({
   const progress = totalDue > 0 ? Math.min(100, (done / totalDue) * 100) : 0;
   const remaining = Math.max(totalDue - done, 1);
 
+  const flashColor =
+    flash === 0
+      ? "rgba(239,68,68,0.18)"
+      : flash === 1
+        ? "rgba(245,158,11,0.16)"
+        : flash === 2
+          ? "rgba(16,185,129,0.18)"
+          : flash === 3
+            ? "rgba(14,165,233,0.18)"
+            : "transparent";
+
   return (
-    <div className="flex flex-col flex-1 min-h-svh">
+    <div className="flex flex-col flex-1 min-h-svh relative">
+      {/* Rating flash overlay */}
+      <div
+        aria-hidden
+        style={{ backgroundColor: flashColor }}
+        className="pointer-events-none fixed inset-0 z-10 transition-[background-color] duration-200 ease-out"
+      />
+
       {/* Top bar */}
       <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl">
         <div className="max-w-2xl mx-auto flex items-center gap-3 h-14 px-5">

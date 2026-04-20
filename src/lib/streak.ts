@@ -35,3 +35,14 @@ export function reviewedTodayCount(reviewedAtIsoStrings: string[]): number {
     (iso) => ymdInTokyo(new Date(iso)) === today
   ).length;
 }
+
+export function countsByDay(
+  reviewedAtIsoStrings: string[]
+): Record<string, number> {
+  const acc: Record<string, number> = {};
+  for (const iso of reviewedAtIsoStrings) {
+    const day = ymdInTokyo(new Date(iso));
+    acc[day] = (acc[day] ?? 0) + 1;
+  }
+  return acc;
+}
