@@ -232,7 +232,9 @@ export function ReviewSession({
       if (cancelled) return;
       await sleep(1200);
       if (cancelled) return;
-      setQueue((q) => (q.length > 0 ? q.slice(1) : q));
+      // Rotate instead of removing: keep the card in the due queue so this
+      // listening pass doesn't affect SRS progress or the remaining count.
+      setQueue((q) => (q.length > 1 ? [...q.slice(1), q[0]] : q));
     })();
 
     return () => {
