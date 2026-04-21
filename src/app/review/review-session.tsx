@@ -9,6 +9,8 @@ import {
   BookOpen,
   GraduationCap,
   Loader2,
+  Pause,
+  Play,
   RefreshCw,
   Sparkles,
   Volume2,
@@ -181,11 +183,63 @@ export function ReviewSession({
     if (card) speak(card.word);
   }, [card, speak]);
 
+  const [autoPlay, setAutoPlay] = useState(false);
+
   useEffect(() => {
     if (!card) return;
+    if (autoPlay) return;
     if (cloze && !revealed) return;
     speak(card.word);
-  }, [card, revealed, cloze, speak]);
+  }, [card, revealed, cloze, autoPlay, speak]);
+
+  useEffect(() => {
+    if (!autoPlay || !card) return;
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    let cancelled = false;
+    const sleep = (ms: number) =>
+      new Promise<void>((r) => setTimeout(r, ms));
+    const utter = (text: string, lang: "en-US" | "ja-JP", rate = 0.95) =>
+      new Promise<void>((resolve) => {
+        if (!text) return resolve();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = lang;
+        u.rate = rate;
+        u.onend = () => resolve();
+        u.onerror = () => resolve();
+        window.speechSynthesis.speak(u);
+      });
+
+    window.speechSynthesis.cancel();
+    (async () => {
+      setRevealed(false);
+      await sleep(250);
+      if (cancelled) return;
+      await utter(card.word, "en-US", 0.9);
+      if (cancelled) return;
+      await sleep(350);
+      if (cancelled) return;
+      setRevealed(true);
+      await utter(card.definition_ja, "ja-JP", 1.0);
+      if (cancelled) return;
+      if (card.example_en) {
+        await sleep(250);
+        await utter(card.example_en, "en-US", 0.95);
+      }
+      if (cancelled) return;
+      if (card.example_ja) {
+        await utter(card.example_ja, "ja-JP", 1.0);
+      }
+      if (cancelled) return;
+      await sleep(1200);
+      if (cancelled) return;
+      setQueue((q) => (q.length > 0 ? q.slice(1) : q));
+    })();
+
+    return () => {
+      cancelled = true;
+      window.speechSynthesis.cancel();
+    };
+  }, [autoPlay, card?.id]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -289,6 +343,19 @@ export function ReviewSession({
               className="h-full bg-accent transition-[width] duration-200 ease-out"
             />
           </div>
+          <button
+            type="button"
+            onClick={() => setAutoPlay((v) => !v)}
+            aria-pressed={autoPlay}
+            aria-label={autoPlay ? "自動再生を停止" : "自動再生"}
+            className={`w-6 h-6 rounded-full flex items-center justify-center transition active:scale-95 ${
+              autoPlay
+                ? "bg-accent text-accent-foreground"
+                : "bg-surface-2 text-muted"
+            }`}
+          >
+            {autoPlay ? <Pause size={11} /> : <Play size={11} />}
+          </button>
           <button
             type="button"
             onClick={() => setCloze((v) => !v)}

@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { motion } from "motion/react";
 import { Search } from "lucide-react";
 import type { Card } from "@/lib/types";
-import { CardModal } from "./card-modal";
 
 export type CardRow = Pick<
   Card,
@@ -46,7 +46,6 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | Card["status"]>("all");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
-  const [selected, setSelected] = useState<CardRow | null>(null);
 
   const allTags = useMemo(() => {
     const set = new Set<string>();
@@ -154,8 +153,12 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
                 delay: Math.min(i * 0.01, 0.15),
                 ease: [0.16, 1, 0.3, 1],
               }}
-              onClick={() => setSelected(c)}
-              className="rounded-xl bg-surface p-3 border border-border/60 flex flex-col gap-1 cursor-pointer hover:border-accent/40 active:scale-[0.995] transition"
+              className="rounded-xl bg-surface border border-border/60 hover:border-accent/40 active:scale-[0.995] transition"
+            >
+            <Link
+              href={`/cards/${c.id}`}
+              prefetch={false}
+              className="block p-3 flex flex-col gap-1"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex flex-col gap-0.5 min-w-0 flex-1">
@@ -198,13 +201,10 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
                   ))}
                 </div>
               )}
+            </Link>
             </motion.li>
           ))}
         </ul>
-      )}
-
-      {selected && (
-        <CardModal card={selected} onClose={() => setSelected(null)} />
       )}
     </div>
   );
