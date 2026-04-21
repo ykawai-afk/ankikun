@@ -7,17 +7,19 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const BATCH = 25;
+const BATCH = 30;
 
 const BatchOut = z.object({
   languages: z.array(z.enum(["english", "french", "other"])),
 });
 
-const PROMPT = `以下の英単語カードの word を見て、言語を判定してください。
-- "english": 現代英語として一般的な語 (借用語であってもネイティブが普通に使うもの)
-- "french": フランス語として使われる語、英語では使わない純粋フランス語
-- "other": それ以外
-入力と同じ順で languages 配列を返してください。N個入力→N個出力。`;
+const PROMPT = `以下の vocabulary カードについて、word と definition_ja を見て、カードの見出し語が「現代英語の語彙として英語話者が通常使う語かどうか」を判定してください。
+
+- "english": 英語として一般的に使う（借用語 "faux pas", "concierge", "cliché" 等も english とする）
+- "french": 英語話者が普通は使わない純粋フランス語（"ringarde", "aux faux", "l'amour", 固有の成句等）
+- "other": 判定不能、固有名詞、その他
+
+入力と同じ順序で languages 配列を返してください。N個入力→N個出力。`;
 
 export async function POST(req: NextRequest) {
   if (req.headers.get("authorization") !== `Bearer ${process.env.INGEST_TOKEN}`) {
@@ -29,89 +31,43 @@ export async function POST(req: NextRequest) {
   }
 
   const body = (await req.json().catch(() => ({}))) as {
-    limit?: number;
     dry_run?: boolean;
+    limit?: number;
   };
-  const limit = Math.min(Math.max(body.limit ?? 300, 1), 600);
   const dry = body.dry_run === true;
+  const limit = Math.min(Math.max(body.limit ?? 1500, 1), 2000);
 
   const supabase = createAdminClient();
-  const FRENCH_ACCENTS =
-    "word.ilike.%é%,word.ilike.%è%,word.ilike.%ê%,word.ilike.%à%,word.ilike.%â%,word.ilike.%ô%,word.ilike.%î%,word.ilike.%ï%,word.ilike.%ù%,word.ilike.%û%,word.ilike.%ç%,word.ilike.%ë%,word.ilike.%œ%,word.ilike.%æ%";
-
-  // Strategy A: cards that explicitly mention French in Japanese fields.
-  // Scan all the user's cards locally so we can match jsonb (related/extra)
-  // fields that Supabase's PostgREST .or() can't easily filter on.
-  const { data: all } = await supabase
+  const { data: cards, error } = await supabase
     .from("cards")
-    .select("id, word, definition_ja, etymology, example_ja, extra_examples, related_words")
-    .eq("user_id", userId);
-
-  const french = (all ?? []).filter((c) => {
-    const blob = JSON.stringify({
-      d: c.definition_ja ?? "",
-      e: c.etymology ?? "",
-      ej: c.example_ja ?? "",
-      x: c.extra_examples ?? "",
-      r: c.related_words ?? "",
-    });
-    return (
-      blob.includes("フランス語") ||
-      blob.includes("仏語") ||
-      blob.includes("（仏）") ||
-      blob.includes("(仏)")
-    );
-  });
-
-  const directIds = french.map((c) => c.id);
-  const directWords = french.map((c) => c.word);
-
-  if (!dry && directIds.length > 0) {
-    await supabase
-      .from("cards")
-      .delete()
-      .in("id", directIds)
-      .eq("user_id", userId);
-  }
-
-  // Strategy B: accented words, let Claude classify
-  const { data: accented } = await supabase
-    .from("cards")
-    .select("id, word")
+    .select("id, word, definition_ja")
     .eq("user_id", userId)
-    .or(FRENCH_ACCENTS)
     .limit(limit);
-
-  const candidates = (accented ?? []).slice(0, limit);
-  if (candidates.length === 0 && directIds.length === 0) {
-    return NextResponse.json({ checked: 0, deleted: 0, french: [] });
-  }
-  if (candidates.length === 0) {
-    return NextResponse.json({
-      checked: 0,
-      deleted: directIds.length,
-      french: directWords,
-      dry_run: dry,
-    });
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!cards?.length) return NextResponse.json({ checked: 0, deleted: 0, french: [] });
 
   const anthropic = getAnthropicClient();
   const frenchIds: string[] = [];
   const frenchWords: string[] = [];
   const failures: string[] = [];
 
-  for (let i = 0; i < candidates.length; i += BATCH) {
-    const batch = candidates.slice(i, i + BATCH);
-    const list = batch.map((c, n) => `${n + 1}. ${c.word}`).join("\n");
+  for (let i = 0; i < cards.length; i += BATCH) {
+    const batch = cards.slice(i, i + BATCH);
+    const list = batch
+      .map(
+        (c, n) =>
+          `${n + 1}. ${c.word} — ${(c.definition_ja ?? "").slice(0, 80)}`
+      )
+      .join("\n");
     try {
       const result = await anthropic.messages.parse({
         model: "claude-opus-4-7",
-        max_tokens: 1000,
+        max_tokens: 1500,
         system: PROMPT,
         messages: [
           {
             role: "user",
-            content: `以下 ${batch.length} 単語の言語を同じ順で返してください:\n\n${list}`,
+            content: `以下 ${batch.length} カードを判定してください:\n\n${list}`,
           },
         ],
         output_config: { format: zodOutputFormat(BatchOut) },
@@ -136,25 +92,27 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  let deleted = directIds.length;
+  let deleted = 0;
   if (!dry && frenchIds.length > 0) {
-    const { error, count } = await supabase
+    const { count, error: delErr } = await supabase
       .from("cards")
       .delete({ count: "exact" })
       .in("id", frenchIds)
       .eq("user_id", userId);
-    if (error)
+    if (delErr) {
       return NextResponse.json(
-        { error: error.message, french: [...directWords, ...frenchWords] },
+        { error: delErr.message, french: frenchWords },
         { status: 500 }
       );
-    deleted += count ?? frenchIds.length;
+    }
+    deleted = count ?? frenchIds.length;
   }
 
   return NextResponse.json({
-    checked: candidates.length,
+    checked: cards.length,
+    matched: frenchIds.length,
     deleted,
-    french: [...directWords, ...frenchWords],
+    french: frenchWords,
     failures: failures.slice(0, 5),
     dry_run: dry,
   });
