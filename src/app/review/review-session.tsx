@@ -12,6 +12,7 @@ import type {
   Rating,
   RelatedWord,
 } from "@/lib/types";
+import { haptic } from "@/lib/haptics";
 import { grade } from "./actions";
 
 const BUTTONS: {
@@ -91,12 +92,14 @@ export function ReviewSession({
       const cardId = card.id;
       const isLast = idx >= queue.length - 1;
 
+      haptic(r === 0 ? "again" : r === 1 ? "medium" : r === 2 ? "good" : "light");
       setFlash(r);
       setTimeout(() => setFlash(null), 280);
 
       setRevealed(false);
       if (isLast) {
         setIdx(queue.length);
+        haptic("heavy");
         confetti({
           particleCount: 120,
           spread: 80,
