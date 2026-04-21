@@ -12,6 +12,7 @@ import {
   Pause,
   Play,
   RefreshCw,
+  Shuffle,
   Sparkles,
   Volume2,
 } from "lucide-react";
@@ -113,6 +114,39 @@ export function ReviewSession({
 
   const card = queue[0] as Card | undefined;
 
+  const againStreakRef = useRef<Map<string, number>>(new Map());
+  const similarMapRef = useRef<
+    Map<
+      string,
+      {
+        id: string;
+        word: string;
+        definition_ja: string;
+        part_of_speech: string | null;
+        reading: string | null;
+        similarity: number;
+      }[]
+    >
+  >(new Map());
+  const [similarTick, setSimilarTick] = useState(0);
+  const [similarBusyId, setSimilarBusyId] = useState<string | null>(null);
+
+  const fetchSimilar = useCallback(async (cardId: string) => {
+    if (similarMapRef.current.has(cardId)) return;
+    setSimilarBusyId(cardId);
+    try {
+      const res = await fetch(`/api/cards/${cardId}/similar`);
+      if (!res.ok) throw new Error(`similar ${res.status}`);
+      const data = await res.json();
+      similarMapRef.current.set(cardId, data.similar ?? []);
+      setSimilarTick((t) => t + 1);
+    } catch (e) {
+      console.error("similar fetch failed", e);
+    } finally {
+      setSimilarBusyId((id) => (id === cardId ? null : id));
+    }
+  }, []);
+
   const rate = useCallback(
     (r: Rating) => {
       if (!revealed || !card) return;
@@ -121,6 +155,17 @@ export function ReviewSession({
       haptic(r === 0 ? "again" : r === 1 ? "medium" : r === 2 ? "good" : "light");
       setFlash(r);
       setTimeout(() => setFlash(null), 280);
+
+      const streakMap = againStreakRef.current;
+      if (r === 0) {
+        const next = (streakMap.get(cardId) ?? 0) + 1;
+        streakMap.set(cardId, next);
+        if (next >= 2) {
+          fetchSimilar(cardId).catch(() => {});
+        }
+      } else {
+        streakMap.delete(cardId);
+      }
 
       setCounts((c) => ({
         again: c.again + (r === 0 ? 1 : 0),
@@ -166,7 +211,7 @@ export function ReviewSession({
         if (willFinish) p.finally(() => router.refresh());
       }, 0);
     },
-    [card, queue.length, revealed, router]
+    [card, queue.length, revealed, router, fetchSimilar]
   );
 
   const speak = useCallback((text: string) => {
@@ -524,6 +569,13 @@ export function ReviewSession({
                 {card.extra_examples && card.extra_examples.length > 0 && (
                   <ExtraExamplesPanel items={card.extra_examples} onSpeak={speak} />
                 )}
+                {(againStreakRef.current.get(card.id) ?? 0) >= 2 && (
+                  <SimilarPanel
+                    cards={similarMapRef.current.get(card.id) ?? []}
+                    busy={similarBusyId === card.id}
+                    tick={similarTick}
+                  />
+                )}
                 <DeepDiveSection
                   cardId={card.id}
                   deepDive={card.deep_dive}
@@ -720,6 +772,65 @@ function ExtraExamplesPanel({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function SimilarPanel({
+  cards,
+  busy,
+  tick: _tick,
+}: {
+  cards: {
+    id: string;
+    word: string;
+    definition_ja: string;
+    part_of_speech: string | null;
+    reading: string | null;
+    similarity: number;
+  }[];
+  busy: boolean;
+  tick: number;
+}) {
+  return (
+    <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 flex flex-col gap-2">
+      <div className="flex items-center gap-1.5">
+        <Shuffle size={11} className="text-amber-600 dark:text-amber-400" />
+        <span className="text-[9px] uppercase tracking-widest text-amber-700 dark:text-amber-400 font-semibold">
+          混同の疑い · 連続Again
+        </span>
+      </div>
+      {busy && cards.length === 0 ? (
+        <div className="flex items-center gap-1.5 text-[11px] text-muted">
+          <Loader2 size={11} className="animate-spin" />
+          似た語を探しています…
+        </div>
+      ) : cards.length === 0 ? (
+        <p className="text-[11px] text-muted">
+          似た語が見つかりませんでした。語源や使い方の違いを再確認してみてください。
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {cards.map((c) => (
+            <li key={c.id} className="flex items-baseline gap-2 text-[12px]">
+              <Link
+                href={`/cards/${c.id}`}
+                className="font-semibold hover:text-accent transition shrink-0"
+              >
+                {c.word}
+              </Link>
+              {c.part_of_speech && (
+                <span className="text-[9px] text-muted">
+                  {c.part_of_speech}
+                </span>
+              )}
+              <span className="text-muted leading-relaxed">
+                {c.definition_ja}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
