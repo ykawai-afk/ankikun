@@ -36,19 +36,47 @@ export async function POST(req: NextRequest) {
   const dry = body.dry_run === true;
 
   const supabase = createAdminClient();
-  // Prefer candidates with accented characters; fall back to any card.
+  const FRENCH_ACCENTS =
+    "word.ilike.%é%,word.ilike.%è%,word.ilike.%ê%,word.ilike.%à%,word.ilike.%â%,word.ilike.%ô%,word.ilike.%î%,word.ilike.%ï%,word.ilike.%ù%,word.ilike.%û%,word.ilike.%ç%,word.ilike.%ë%,word.ilike.%œ%,word.ilike.%æ%";
+
+  // Strategy A: direct delete where definition_ja mentions フランス語 (clear signal, skip Claude)
+  const { data: directHits } = await supabase
+    .from("cards")
+    .select("id, word")
+    .eq("user_id", userId)
+    .ilike("definition_ja", "%フランス語%")
+    .limit(limit);
+
+  const directIds = (directHits ?? []).map((c) => c.id);
+  const directWords = (directHits ?? []).map((c) => c.word);
+
+  if (!dry && directIds.length > 0) {
+    await supabase
+      .from("cards")
+      .delete()
+      .in("id", directIds)
+      .eq("user_id", userId);
+  }
+
+  // Strategy B: accented words, let Claude classify
   const { data: accented } = await supabase
     .from("cards")
     .select("id, word")
     .eq("user_id", userId)
-    .or(
-      "word.ilike.%é%,word.ilike.%è%,word.ilike.%ê%,word.ilike.%à%,word.ilike.%â%,word.ilike.%ô%,word.ilike.%î%,word.ilike.%ï%,word.ilike.%ù%,word.ilike.%û%,word.ilike.%ç%,word.ilike.%ë%,word.ilike.%œ%,word.ilike.%æ%"
-    )
+    .or(FRENCH_ACCENTS)
     .limit(limit);
 
   const candidates = (accented ?? []).slice(0, limit);
-  if (candidates.length === 0) {
+  if (candidates.length === 0 && directIds.length === 0) {
     return NextResponse.json({ checked: 0, deleted: 0, french: [] });
+  }
+  if (candidates.length === 0) {
+    return NextResponse.json({
+      checked: 0,
+      deleted: directIds.length,
+      french: directWords,
+      dry_run: dry,
+    });
   }
 
   const anthropic = getAnthropicClient();
@@ -92,7 +120,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  let deleted = 0;
+  let deleted = directIds.length;
   if (!dry && frenchIds.length > 0) {
     const { error, count } = await supabase
       .from("cards")
@@ -101,16 +129,16 @@ export async function POST(req: NextRequest) {
       .eq("user_id", userId);
     if (error)
       return NextResponse.json(
-        { error: error.message, french: frenchWords },
+        { error: error.message, french: [...directWords, ...frenchWords] },
         { status: 500 }
       );
-    deleted = count ?? frenchIds.length;
+    deleted += count ?? frenchIds.length;
   }
 
   return NextResponse.json({
     checked: candidates.length,
     deleted,
-    french: frenchWords,
+    french: [...directWords, ...frenchWords],
     failures: failures.slice(0, 5),
     dry_run: dry,
   });
