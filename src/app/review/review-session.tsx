@@ -245,6 +245,17 @@ export function ReviewSession({
             </div>
           )}
 
+          {/* Image */}
+          {card.image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={card.image_url}
+              alt=""
+              className="w-full max-w-xs aspect-[4/3] object-cover rounded-2xl"
+              loading="lazy"
+            />
+          )}
+
           {/* Front */}
           {cloze && clozeFront ? (
             <div className="flex flex-col items-center gap-2 w-full max-w-md">
