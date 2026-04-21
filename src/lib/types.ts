@@ -12,6 +12,23 @@ export type ExtraExample = {
   register: "formal" | "conversational" | "idiom" | null;
 };
 
+export type RootSegment = {
+  segment: string;
+  origin: string | null;
+  meaning: string;
+};
+
+export type Cognate = {
+  word: string;
+  meaning_ja: string;
+};
+
+export type DeepDive = {
+  roots: RootSegment[];
+  cognates: Cognate[];
+  hook: string;
+};
+
 export type Card = {
   id: string;
   user_id: string;
@@ -28,6 +45,7 @@ export type Card = {
   image_url: string | null;
   related_words: RelatedWord[] | null;
   extra_examples: ExtraExample[] | null;
+  deep_dive: DeepDive | null;
   tags: string[] | null;
   ease_factor: number;
   interval_days: number;

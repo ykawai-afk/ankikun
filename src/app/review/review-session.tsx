@@ -4,10 +4,19 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, BookOpen, GraduationCap, Volume2 } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  GraduationCap,
+  Loader2,
+  RefreshCw,
+  Sparkles,
+  Volume2,
+} from "lucide-react";
 import confetti from "canvas-confetti";
 import type {
   Card,
+  DeepDive,
   ExtraExample,
   Rating,
   RelatedWord,
@@ -197,6 +206,34 @@ export function ReviewSession({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [rate, revealed]);
+
+  const [deepDiveBusyId, setDeepDiveBusyId] = useState<string | null>(null);
+
+  const requestDeepDive = useCallback(
+    async (cardId: string, regenerate = false) => {
+      if (deepDiveBusyId) return;
+      setDeepDiveBusyId(cardId);
+      try {
+        const res = await fetch(`/api/cards/${cardId}/deep-dive`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ regenerate }),
+        });
+        if (!res.ok) throw new Error(`deep-dive ${res.status}`);
+        const data = (await res.json()) as { deep_dive: DeepDive };
+        setQueue((q) =>
+          q.map((c) =>
+            c.id === cardId ? { ...c, deep_dive: data.deep_dive } : c
+          )
+        );
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setDeepDiveBusyId(null);
+      }
+    },
+    [deepDiveBusyId]
+  );
 
   const clozeFront = useMemo(() => {
     if (!card || !cloze || !card.example_en) return null;
@@ -418,6 +455,12 @@ export function ReviewSession({
                 {card.extra_examples && card.extra_examples.length > 0 && (
                   <ExtraExamplesPanel items={card.extra_examples} onSpeak={speak} />
                 )}
+                <DeepDiveSection
+                  cardId={card.id}
+                  deepDive={card.deep_dive}
+                  busy={deepDiveBusyId === card.id}
+                  onRequest={requestDeepDive}
+                />
               </motion.div>
             )}
           </AnimatePresence>
@@ -608,6 +651,112 @@ function ExtraExamplesPanel({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function DeepDiveSection({
+  cardId,
+  deepDive,
+  busy,
+  onRequest,
+}: {
+  cardId: string;
+  deepDive: DeepDive | null;
+  busy: boolean;
+  onRequest: (cardId: string, regenerate?: boolean) => void;
+}) {
+  if (!deepDive) {
+    return (
+      <button
+        type="button"
+        onClick={() => onRequest(cardId)}
+        disabled={busy}
+        className="rounded-xl border border-dashed border-accent/40 px-3 py-2.5 flex items-center justify-center gap-2 text-[12px] font-medium text-accent active:scale-[0.99] transition disabled:opacity-60"
+      >
+        {busy ? (
+          <Loader2 size={12} className="animate-spin" />
+        ) : (
+          <Sparkles size={12} />
+        )}
+        {busy ? "生成中…" : "最終兵器 · 語根で覚える"}
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-xl bg-surface-2/60 border border-accent/20 p-3 flex flex-col gap-2.5 relative">
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] uppercase tracking-widest text-accent font-semibold flex items-center gap-1">
+          <Sparkles size={10} /> 最終兵器
+        </span>
+        <button
+          type="button"
+          onClick={() => onRequest(cardId, true)}
+          disabled={busy}
+          aria-label="再生成"
+          className="w-6 h-6 rounded-full flex items-center justify-center text-muted hover:bg-surface-2 active:scale-95 transition disabled:opacity-50"
+        >
+          {busy ? (
+            <Loader2 size={10} className="animate-spin" />
+          ) : (
+            <RefreshCw size={10} />
+          )}
+        </button>
+      </div>
+
+      {deepDive.roots.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <span className="text-[8px] uppercase tracking-widest text-muted font-semibold">
+            語根分解
+          </span>
+          <div className="flex flex-col gap-0.5">
+            {deepDive.roots.map((r, i) => (
+              <div
+                key={`${r.segment}-${i}`}
+                className="flex items-baseline gap-2 text-[11px]"
+              >
+                <span className="font-mono font-semibold text-accent shrink-0">
+                  {r.segment}
+                </span>
+                {r.origin && (
+                  <span className="text-[9px] text-muted shrink-0">
+                    {r.origin}
+                  </span>
+                )}
+                <span className="text-foreground/80 leading-relaxed">
+                  {r.meaning}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {deepDive.cognates.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <span className="text-[8px] uppercase tracking-widest text-muted font-semibold">
+            同根語ネットワーク
+          </span>
+          <ul className="flex flex-col gap-0.5">
+            {deepDive.cognates.map((c, i) => (
+              <li
+                key={`${c.word}-${i}`}
+                className="flex items-baseline gap-2 text-[11px]"
+              >
+                <span className="font-semibold min-w-[72px]">{c.word}</span>
+                <span className="text-muted leading-relaxed">{c.meaning_ja}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {deepDive.hook && (
+        <p className="text-[11px] leading-relaxed text-foreground/90 border-t border-accent/15 pt-2">
+          💡 {deepDive.hook}
+        </p>
+      )}
     </div>
   );
 }
