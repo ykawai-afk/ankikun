@@ -15,27 +15,26 @@ function shift(base: Date, days: number): Date {
 }
 
 const LEVEL_CLASSES = [
-  "bg-border/50",
-  "bg-accent/20",
-  "bg-accent/45",
-  "bg-accent/70",
+  "bg-border/40",
+  "bg-accent/25",
+  "bg-accent/50",
+  "bg-accent/75",
   "bg-accent",
 ] as const;
 
 function buildLevelFn(counts: number[]): (n: number) => number {
   const positives = counts.filter((c) => c > 0).sort((a, b) => a - b);
   if (positives.length === 0) return () => 0;
-  const p90 = positives[Math.floor((positives.length - 1) * 0.9)];
-  const top = Math.max(p90, 8);
-  const t1 = top * 0.25;
-  const t2 = top * 0.5;
-  const t3 = top * 0.75;
-  return (n) => {
-    if (n <= 0) return 0;
-    if (n <= t1) return 1;
-    if (n <= t2) return 2;
-    if (n <= t3) return 3;
-    return 4;
+  const map = new Map<number, number>();
+  const n = positives.length;
+  for (let i = 0; i < n; i++) {
+    const rank = i + 1;
+    const level = Math.min(4, Math.max(1, Math.ceil((rank / n) * 4)));
+    map.set(positives[i], level);
+  }
+  return (c) => {
+    if (c <= 0) return 0;
+    return map.get(c) ?? 4;
   };
 }
 
