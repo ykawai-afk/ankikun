@@ -1,15 +1,26 @@
-import { Flame, Target, Zap } from "lucide-react";
+import Link from "next/link";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Flame,
+  Keyboard,
+  Target,
+  Zap,
+} from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
 import { PageShell } from "@/components/page-shell";
 import { ProgressRing } from "@/components/progress-ring";
 import { Heatmap } from "@/components/heatmap";
 import { computeStreak, reviewedTodayCount, countsByDay } from "@/lib/streak";
+import { getLeechCount } from "@/lib/leech";
 
 export const dynamic = "force-dynamic";
 
 const DAILY_GOAL = 20;
 const MASTERED_THRESHOLD_DAYS = 21;
+const TYPING_MIN_INTERVAL = 14;
+const TYPING_MIN_COUNT = 5;
 
 export default async function Home() {
   const supabase = createAdminClient();
@@ -17,7 +28,15 @@ export default async function Home() {
   const now = new Date().toISOString();
   const ninetyDaysAgo = new Date(Date.now() - 100 * 86_400_000).toISOString();
 
-  const [dueRes, totalRes, newRes, masteredRes, logsRes] = await Promise.all([
+  const [
+    dueRes,
+    totalRes,
+    newRes,
+    masteredRes,
+    logsRes,
+    leechCount,
+    typingPoolRes,
+  ] = await Promise.all([
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
@@ -44,9 +63,17 @@ export default async function Home() {
       .eq("user_id", userId)
       .gte("reviewed_at", ninetyDaysAgo)
       .order("reviewed_at", { ascending: false }),
+    getLeechCount(userId),
+    supabase
+      .from("cards")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .neq("status", "suspended")
+      .gte("interval_days", TYPING_MIN_INTERVAL),
   ]);
 
   const due = dueRes.count ?? 0;
+  const typingPool = typingPoolRes.count ?? 0;
   const total = totalRes.count ?? 0;
   const fresh = newRes.count ?? 0;
   const mastered = masteredRes.count ?? 0;
@@ -101,6 +128,53 @@ export default async function Home() {
           <div className="h-10 rounded-xl bg-success-soft border border-success/20 flex items-center justify-center text-success text-xs font-medium">
             🎉 今日の復習は完了
           </div>
+        )}
+
+        {leechCount > 0 && (
+          <Link
+            href="/review/leech"
+            className="group rounded-xl bg-amber-500/5 border border-amber-500/25 px-3.5 py-2.5 flex items-center gap-2 active:scale-[0.99] transition"
+          >
+            <AlertTriangle
+              size={14}
+              className="text-amber-600 dark:text-amber-400 shrink-0"
+            />
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-[9px] uppercase tracking-widest text-amber-700 dark:text-amber-400 font-semibold">
+                苦手カード
+              </span>
+              <span className="text-[12px]">
+                <span className="font-semibold tabular-nums">{leechCount}</span>
+                <span className="text-muted"> 枚が集中攻撃待ち</span>
+              </span>
+            </div>
+            <ArrowRight
+              size={13}
+              className="text-amber-600/70 dark:text-amber-400/70 group-hover:translate-x-0.5 transition"
+            />
+          </Link>
+        )}
+
+        {typingPool >= TYPING_MIN_COUNT && (
+          <Link
+            href="/review/typing"
+            className="group rounded-xl bg-accent-soft border border-accent/20 px-3.5 py-2.5 flex items-center gap-2 active:scale-[0.99] transition"
+          >
+            <Keyboard size={14} className="text-accent shrink-0" />
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-[9px] uppercase tracking-widest text-accent font-semibold">
+                英訳ドリル
+              </span>
+              <span className="text-[12px]">
+                <span className="font-semibold tabular-nums">{typingPool}</span>
+                <span className="text-muted"> 枚から定着テスト</span>
+              </span>
+            </div>
+            <ArrowRight
+              size={13}
+              className="text-accent/70 group-hover:translate-x-0.5 transition"
+            />
+          </Link>
         )}
 
         {/* Mastered */}

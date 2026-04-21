@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import * as cheerio from "cheerio";
 import { getAnthropicClient } from "@/lib/anthropic";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -157,6 +158,136 @@ export async function processIngest({
 
     if (cardsToInsert.length > 0) {
       const { error: cardsError } = await supabase.from("cards").insert(cardsToInsert);
+      if (cardsError) throw new Error(`cards insert failed: ${cardsError.message}`);
+    }
+
+    await supabase
+      .from("ingestions")
+      .update({
+        status: "processed",
+        raw_response: parsed as unknown as Record<string, unknown>,
+        cards_created: cardsToInsert.length,
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", ingestion.id);
+
+    return {
+      ingestion_id: ingestion.id,
+      cards_created: cardsToInsert.length,
+      words: parsed.words.map((w) => w.word),
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await supabase
+      .from("ingestions")
+      .update({
+        status: "failed",
+        error: message,
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", ingestion.id);
+    throw err;
+  }
+}
+
+async function fetchArticleText(url: string): Promise<{
+  text: string;
+  title: string | null;
+}> {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (compatible; Ankikun/1.0; +https://ankikun.vercel.app)",
+      Accept: "text/html,application/xhtml+xml",
+    },
+    redirect: "follow",
+  });
+  if (!res.ok) throw new Error(`fetch failed: ${res.status} ${res.statusText}`);
+  const html = await res.text();
+  const $ = cheerio.load(html);
+  $("script, style, nav, header, footer, aside, noscript, iframe").remove();
+  const title = $("title").text().trim() || null;
+  const article =
+    $("article").first().text() ||
+    $("main").first().text() ||
+    $("[role=main]").first().text() ||
+    $("body").text();
+  const clean = article.replace(/\s+/g, " ").trim().slice(0, 18000);
+  if (clean.length < 200) {
+    throw new Error(`article too short (${clean.length} chars)`);
+  }
+  return { text: clean, title };
+}
+
+export async function processUrlIngest({
+  url,
+  userId,
+}: {
+  url: string;
+  userId: string;
+}): Promise<IngestResult> {
+  if (!/^https?:\/\//i.test(url)) {
+    throw new Error("URLは http:// または https:// で始めてください");
+  }
+
+  const supabase = createAdminClient();
+  const { data: ingestion, error: ingError } = await supabase
+    .from("ingestions")
+    .insert({
+      user_id: userId,
+      image_path: `url:${url}`,
+      status: "pending",
+    })
+    .select()
+    .single();
+  if (ingError || !ingestion) {
+    throw new Error(`ingestion record failed: ${ingError?.message}`);
+  }
+
+  try {
+    const { text, title } = await fetchArticleText(url);
+    const anthropic = getAnthropicClient();
+    const result = await anthropic.messages.parse({
+      model: "claude-opus-4-7",
+      max_tokens: 16000,
+      system: SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: `以下のWebページ本文から学習価値の高い英単語を抽出してカード化してください。
+
+出典URL: ${url}
+${title ? `タイトル: ${title}\n` : ""}
+--- 本文 ---
+${text}`,
+        },
+      ],
+      output_config: { format: zodOutputFormat(ExtractionSchema) },
+    });
+
+    const parsed = result.parsed_output;
+    if (!parsed) throw new Error(`structured output missing (stop_reason: ${result.stop_reason})`);
+
+    const cardsToInsert = parsed.words.map((w) => ({
+      user_id: userId,
+      word: w.word,
+      reading: w.reading,
+      part_of_speech: w.part_of_speech,
+      definition_ja: w.definition_ja,
+      definition_en: w.definition_en,
+      example_en: w.example_en,
+      example_ja: w.example_ja,
+      etymology: w.etymology,
+      related_words: w.related_words.length > 0 ? w.related_words : null,
+      extra_examples: w.extra_examples.length > 0 ? w.extra_examples : null,
+      source_image_path: null,
+      source_context: title ? `${title} — ${url}` : url,
+    }));
+
+    if (cardsToInsert.length > 0) {
+      const { error: cardsError } = await supabase
+        .from("cards")
+        .insert(cardsToInsert);
       if (cardsError) throw new Error(`cards insert failed: ${cardsError.message}`);
     }
 

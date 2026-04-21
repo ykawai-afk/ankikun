@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { pickMediaType, processIngest } from "@/lib/ingest";
+import { pickMediaType, processIngest, processUrlIngest } from "@/lib/ingest";
 import { getUserId } from "@/lib/user";
 
 export type AddResult =
@@ -23,6 +23,28 @@ export async function addFromImage(formData: FormData): Promise<AddResult> {
 
   try {
     const result = await processIngest({ bytes, mediaType, userId });
+    revalidatePath("/");
+    revalidatePath("/cards");
+    return {
+      ok: true,
+      cardsCreated: result.cards_created,
+      words: result.words,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+export async function addFromUrl(formData: FormData): Promise<AddResult> {
+  const url = String(formData.get("url") ?? "").trim();
+  if (!url) return { ok: false, error: "URLを入力してください" };
+
+  const userId = getUserId();
+  try {
+    const result = await processUrlIngest({ url, userId });
     revalidatePath("/");
     revalidatePath("/cards");
     return {
