@@ -13,7 +13,27 @@ function urlBase64ToUint8Array(base64String: string): BufferSource {
   return buf;
 }
 
-type State = "loading" | "unsupported" | "denied" | "off" | "on";
+type State =
+  | "loading"
+  | "needs-pwa"
+  | "unsupported"
+  | "denied"
+  | "off"
+  | "on";
+
+function isStandalonePwa(): boolean {
+  if (typeof window === "undefined") return false;
+  const mm = window.matchMedia?.("(display-mode: standalone)").matches ?? false;
+  const iosStandalone =
+    "standalone" in navigator &&
+    (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return mm || iosStandalone;
+}
+
+function isIos(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent);
+}
 
 export function PushToggle() {
   const [state, setState] = useState<State>("loading");
@@ -24,11 +44,15 @@ export function PushToggle() {
     let alive = true;
     (async () => {
       if (typeof window === "undefined") return;
-      if (
-        !("serviceWorker" in navigator) ||
-        !("PushManager" in window) ||
-        !vapidKey
-      ) {
+      if (!vapidKey || !("serviceWorker" in navigator)) {
+        if (alive) setState("unsupported");
+        return;
+      }
+      if (isIos() && !isStandalonePwa()) {
+        if (alive) setState("needs-pwa");
+        return;
+      }
+      if (!("PushManager" in window)) {
         if (alive) setState("unsupported");
         return;
       }
@@ -106,7 +130,31 @@ export function PushToggle() {
     }
   }
 
-  if (state === "loading" || state === "unsupported") return null;
+  if (state === "loading") return null;
+
+  if (state === "unsupported") {
+    return (
+      <div className="rounded-xl bg-surface-2 px-3 py-2 flex items-center gap-2 text-[11px] text-muted">
+        <BellOff size={12} />
+        このブラウザは通知非対応
+      </div>
+    );
+  }
+
+  if (state === "needs-pwa") {
+    return (
+      <div className="rounded-xl bg-accent-soft/60 border border-accent/20 px-3 py-2 flex items-start gap-2 text-[11px] text-foreground">
+        <Bell size={12} className="text-accent mt-0.5 shrink-0" />
+        <div className="flex flex-col gap-0.5">
+          <span className="font-medium">通知を使うには</span>
+          <span className="text-muted leading-relaxed">
+            Safari下部の共有ボタン → <b>ホーム画面に追加</b> →
+            追加したアイコンから起動
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   if (state === "denied") {
     return (
