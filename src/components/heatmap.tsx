@@ -14,12 +14,29 @@ function shift(base: Date, days: number): Date {
   return d;
 }
 
-function levelClass(count: number): string {
-  if (count === 0) return "bg-border/50";
-  if (count < 3) return "bg-accent/25";
-  if (count < 8) return "bg-accent/55";
-  if (count < 16) return "bg-accent/80";
-  return "bg-accent";
+const LEVEL_CLASSES = [
+  "bg-border/50",
+  "bg-accent/20",
+  "bg-accent/45",
+  "bg-accent/70",
+  "bg-accent",
+] as const;
+
+function buildLevelFn(counts: number[]): (n: number) => number {
+  const positives = counts.filter((c) => c > 0).sort((a, b) => a - b);
+  if (positives.length === 0) return () => 0;
+  const p90 = positives[Math.floor((positives.length - 1) * 0.9)];
+  const top = Math.max(p90, 8);
+  const t1 = top * 0.25;
+  const t2 = top * 0.5;
+  const t3 = top * 0.75;
+  return (n) => {
+    if (n <= 0) return 0;
+    if (n <= t1) return 1;
+    if (n <= t2) return 2;
+    if (n <= t3) return 3;
+    return 4;
+  };
 }
 
 export function Heatmap({ countsByDay }: { countsByDay: Record<string, number> }) {
@@ -41,6 +58,7 @@ export function Heatmap({ countsByDay }: { countsByDay: Record<string, number> }
 
   const total = cells.reduce((sum, c) => sum + c.count, 0);
   const activeDays = cells.filter((c) => c.count > 0).length;
+  const levelOf = buildLevelFn(cells.map((c) => c.count));
 
   return (
     <section className="rounded-xl bg-surface-2 p-3 flex flex-col gap-2">
@@ -67,7 +85,7 @@ export function Heatmap({ countsByDay }: { countsByDay: Record<string, number> }
               <div
                 key={cell.date}
                 title={`${cell.date} · ${cell.count}回`}
-                className={`aspect-square rounded-[2px] ${levelClass(cell.count)}`}
+                className={`aspect-square rounded-[2px] ${LEVEL_CLASSES[levelOf(cell.count)]}`}
               />
             ))}
           </div>
@@ -81,11 +99,9 @@ function Legend() {
   return (
     <div className="flex items-center gap-0.5 text-[9px] text-muted">
       <span>少</span>
-      <span className="w-2 h-2 rounded-[2px] bg-border/50" />
-      <span className="w-2 h-2 rounded-[2px] bg-accent/25" />
-      <span className="w-2 h-2 rounded-[2px] bg-accent/55" />
-      <span className="w-2 h-2 rounded-[2px] bg-accent/80" />
-      <span className="w-2 h-2 rounded-[2px] bg-accent" />
+      {LEVEL_CLASSES.map((c, i) => (
+        <span key={i} className={`w-2 h-2 rounded-[2px] ${c}`} />
+      ))}
       <span>多</span>
     </div>
   );

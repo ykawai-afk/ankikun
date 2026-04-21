@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { ArrowRight, Flame, Target, Zap } from "lucide-react";
+import { Flame, Target, Zap } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
 import { PageShell } from "@/components/page-shell";
@@ -98,21 +97,8 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Primary CTA */}
-        {due > 0 ? (
-          <Link
-            href="/review"
-            className="group h-12 rounded-2xl bg-accent text-accent-foreground flex items-center justify-between px-4 active:scale-[0.98] transition shadow-[0_8px_24px_-10px_var(--accent)]"
-          >
-            <span className="text-sm font-semibold tracking-tight">
-              復習を始める
-            </span>
-            <span className="w-8 h-8 rounded-full bg-accent-foreground/15 flex items-center justify-center group-hover:translate-x-0.5 transition">
-              <ArrowRight size={14} />
-            </span>
-          </Link>
-        ) : (
-          <div className="h-12 rounded-2xl bg-success-soft border border-success/20 flex items-center justify-center text-success text-sm font-medium">
+        {due === 0 && (
+          <div className="h-10 rounded-xl bg-success-soft border border-success/20 flex items-center justify-center text-success text-xs font-medium">
             🎉 今日の復習は完了
           </div>
         )}

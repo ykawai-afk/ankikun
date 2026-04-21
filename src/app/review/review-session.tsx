@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion, type PanInfo } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, BookOpen, GraduationCap, Volume2 } from "lucide-react";
 import confetti from "canvas-confetti";
 import type {
@@ -146,15 +146,25 @@ export function ReviewSession({
     [card, idx, queue.length, revealed, router]
   );
 
-  const speak = useCallback(() => {
-    if (!card) return;
+  const speak = useCallback((text: string) => {
+    if (!text) return;
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    const u = new SpeechSynthesisUtterance(card.word);
+    const u = new SpeechSynthesisUtterance(text);
     u.lang = "en-US";
     u.rate = 0.95;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
-  }, [card]);
+  }, []);
+
+  const speakWord = useCallback(() => {
+    if (card) speak(card.word);
+  }, [card, speak]);
+
+  useEffect(() => {
+    if (!card) return;
+    if (cloze && !revealed) return;
+    speak(card.word);
+  }, [card, revealed, cloze, speak]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -180,22 +190,6 @@ export function ReviewSession({
     if (!card || !cloze || !card.example_en) return null;
     return clozeSentence(card.example_en, card.word);
   }, [card, cloze]);
-
-  const onPanEnd = useCallback(
-    (_: unknown, info: PanInfo) => {
-      if (!revealed) return;
-      const { x, y } = info.offset;
-      const threshold = 70;
-      if (Math.abs(x) > Math.abs(y)) {
-        if (x > threshold) rate(2); // right → Good
-        else if (x < -threshold) rate(0); // left → Again
-      } else {
-        if (y < -threshold) rate(3); // up → Easy
-        else if (y > threshold) rate(1); // down → Hard
-      }
-    },
-    [rate, revealed]
-  );
 
   if (!card) {
     return (
@@ -266,15 +260,9 @@ export function ReviewSession({
 
       {/* Card area */}
       <main className="flex-1 max-w-xl mx-auto w-full px-4 pb-32 flex flex-col">
-        <motion.article
+        <article
           key={card.id}
-          drag={revealed ? true : false}
-          dragElastic={0.18}
-          dragSnapToOrigin
-          dragConstraints={{ top: 0, bottom: 0, left: 0, right: 0 }}
-          onPanEnd={onPanEnd}
-          className="flex-1 flex flex-col items-center justify-center gap-3 py-5 touch-pan-y"
-          style={{ touchAction: revealed ? "none" : "pan-y" }}
+          className="flex-1 flex flex-col items-center justify-center gap-3 py-5"
         >
           {/* Tags */}
           {card.tags && card.tags.length > 0 && (
@@ -321,7 +309,7 @@ export function ReviewSession({
                   {card.word}
                 </h2>
                 <button
-                  onClick={speak}
+                  onClick={speakWord}
                   aria-label="発音を聞く"
                   className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center active:scale-95 hover:bg-border/50 transition"
                 >
@@ -357,7 +345,7 @@ export function ReviewSession({
                     <div className="text-2xl font-semibold tracking-tight mt-0.5 flex items-center justify-center gap-2">
                       {card.word}
                       <button
-                        onClick={speak}
+                        onClick={speakWord}
                         aria-label="発音を聞く"
                         className="w-7 h-7 rounded-full bg-background flex items-center justify-center active:scale-95 hover:opacity-90 transition"
                       >
@@ -377,14 +365,24 @@ export function ReviewSession({
                   )}
                 </div>
                 {card.example_en && !cloze && (
-                  <blockquote className="rounded-xl border border-border p-3 flex flex-col gap-0.5">
-                    <p className="text-xs leading-relaxed">{card.example_en}</p>
+                  <button
+                    type="button"
+                    onClick={() => speak(card.example_en!)}
+                    aria-label="例文を読み上げ"
+                    className="rounded-xl border border-border p-4 flex flex-col gap-1 text-left active:scale-[0.99] active:bg-surface-2 transition relative"
+                  >
+                    <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-surface-2 flex items-center justify-center opacity-70">
+                      <Volume2 size={11} />
+                    </div>
+                    <p className="text-xs leading-relaxed pr-7">
+                      {card.example_en}
+                    </p>
                     {card.example_ja && (
                       <p className="text-xs text-muted leading-relaxed">
                         {card.example_ja}
                       </p>
                     )}
-                  </blockquote>
+                  </button>
                 )}
                 {card.etymology && (
                   <div className="rounded-xl bg-accent-soft p-3 flex gap-2">
@@ -406,16 +404,16 @@ export function ReviewSession({
                   <RelatedWordsPanel items={card.related_words} />
                 )}
                 {card.extra_examples && card.extra_examples.length > 0 && (
-                  <ExtraExamplesPanel items={card.extra_examples} />
+                  <ExtraExamplesPanel items={card.extra_examples} onSpeak={speak} />
                 )}
               </motion.div>
             )}
           </AnimatePresence>
-        </motion.article>
+        </article>
       </main>
 
       {/* Bottom action */}
-      <div className="fixed bottom-12 left-0 right-0 z-20 bg-gradient-to-t from-background via-background to-transparent pt-6 pb-3">
+      <div className="fixed bottom-16 left-0 right-0 z-20 bg-gradient-to-t from-background via-background to-transparent pt-6 pb-3">
         <div className="max-w-xl mx-auto px-4">
           {!revealed ? (
             <button
@@ -447,8 +445,6 @@ export function ReviewSession({
                 <Kbd>2</Kbd>
                 <Kbd>3</Kbd>
                 <Kbd>4</Kbd>
-                <span className="mx-1">·</span>
-                <span>スワイプでも評価</span>
               </div>
             </>
           )}
@@ -559,7 +555,13 @@ function RelatedWordsPanel({ items }: { items: RelatedWord[] }) {
   );
 }
 
-function ExtraExamplesPanel({ items }: { items: ExtraExample[] }) {
+function ExtraExamplesPanel({
+  items,
+  onSpeak,
+}: {
+  items: ExtraExample[];
+  onSpeak: (text: string) => void;
+}) {
   const registerLabel = (r: ExtraExample["register"]) =>
     r === "formal" ? "formal" : r === "conversational" ? "casual" : r === "idiom" ? "idiom" : null;
   return (
@@ -571,11 +573,17 @@ function ExtraExamplesPanel({ items }: { items: ExtraExample[] }) {
         {items.map((e, i) => {
           const reg = registerLabel(e.register);
           return (
-            <blockquote
+            <button
               key={i}
-              className="rounded-xl border border-border p-2.5 flex flex-col gap-0.5"
+              type="button"
+              onClick={() => onSpeak(e.en)}
+              aria-label="例文を読み上げ"
+              className="rounded-xl border border-border p-3.5 flex flex-col gap-1 text-left active:scale-[0.99] active:bg-surface-2 transition relative"
             >
-              <div className="flex items-baseline justify-between gap-2">
+              <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-surface-2 flex items-center justify-center opacity-70">
+                <Volume2 size={11} />
+              </div>
+              <div className="flex items-baseline justify-between gap-2 pr-7">
                 <p className="text-xs leading-relaxed">{e.en}</p>
                 {reg && (
                   <span className="text-[9px] uppercase tracking-widest text-muted shrink-0">
@@ -584,7 +592,7 @@ function ExtraExamplesPanel({ items }: { items: ExtraExample[] }) {
                 )}
               </div>
               <p className="text-xs text-muted leading-relaxed">{e.ja}</p>
-            </blockquote>
+            </button>
           );
         })}
       </div>
