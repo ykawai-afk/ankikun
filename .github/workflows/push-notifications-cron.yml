@@ -1,0 +1,18 @@
+name: Push notifications cron
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call notifications/send
+        run: |
+          curl -sS -X POST "https://ankikun.vercel.app/api/notifications/send" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -w "\nHTTP %{http_code}\n"
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
