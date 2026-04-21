@@ -3,7 +3,6 @@ import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { getAnthropicClient } from "@/lib/anthropic";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { embedBatch, textForEmbedding } from "@/lib/embeddings";
 
 export const ALLOWED_MEDIA_TYPES = [
   "image/png",
@@ -140,24 +139,7 @@ export async function processIngest({
     const parsed = result.parsed_output;
     if (!parsed) throw new Error(`structured output missing (stop_reason: ${result.stop_reason})`);
 
-    let embeddings: (number[] | null)[] = parsed.words.map(() => null);
-    if (parsed.words.length > 0 && process.env.OPENAI_API_KEY) {
-      try {
-        const inputs = parsed.words.map((w) =>
-          textForEmbedding({
-            word: w.word,
-            part_of_speech: w.part_of_speech,
-            definition_ja: w.definition_ja,
-            definition_en: w.definition_en,
-          })
-        );
-        embeddings = await embedBatch(inputs);
-      } catch (e) {
-        console.error("embed on ingest failed (continuing without embeddings)", e);
-      }
-    }
-
-    const cardsToInsert = parsed.words.map((w, i) => ({
+    const cardsToInsert = parsed.words.map((w) => ({
       user_id: userId,
       word: w.word,
       reading: w.reading,
@@ -169,7 +151,6 @@ export async function processIngest({
       etymology: w.etymology,
       related_words: w.related_words.length > 0 ? w.related_words : null,
       extra_examples: w.extra_examples.length > 0 ? w.extra_examples : null,
-      embedding: embeddings[i] ?? null,
       source_image_path: imagePath,
       source_context: parsed.source_context,
     }));

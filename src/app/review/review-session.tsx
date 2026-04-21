@@ -124,7 +124,7 @@ export function ReviewSession({
         definition_ja: string;
         part_of_speech: string | null;
         reading: string | null;
-        similarity: number;
+        reason: string;
       }[]
     >
   >(new Map());
@@ -787,7 +787,7 @@ function SimilarPanel({
     definition_ja: string;
     part_of_speech: string | null;
     reading: string | null;
-    similarity: number;
+    reason: string;
   }[];
   busy: boolean;
   tick: number;
@@ -810,23 +810,30 @@ function SimilarPanel({
           似た語が見つかりませんでした。語源や使い方の違いを再確認してみてください。
         </p>
       ) : (
-        <ul className="flex flex-col gap-1">
+        <ul className="flex flex-col gap-1.5">
           {cards.map((c) => (
-            <li key={c.id} className="flex items-baseline gap-2 text-[12px]">
-              <Link
-                href={`/cards/${c.id}`}
-                className="font-semibold hover:text-accent transition shrink-0"
-              >
-                {c.word}
-              </Link>
-              {c.part_of_speech && (
-                <span className="text-[9px] text-muted">
-                  {c.part_of_speech}
+            <li key={c.id} className="flex flex-col gap-0.5">
+              <div className="flex items-baseline gap-2 text-[12px]">
+                <Link
+                  href={`/cards/${c.id}`}
+                  className="font-semibold hover:text-accent transition shrink-0"
+                >
+                  {c.word}
+                </Link>
+                {c.part_of_speech && (
+                  <span className="text-[9px] text-muted">
+                    {c.part_of_speech}
+                  </span>
+                )}
+                <span className="text-muted leading-relaxed">
+                  {c.definition_ja}
+                </span>
+              </div>
+              {c.reason && (
+                <span className="text-[10px] text-amber-700/80 dark:text-amber-400/80 pl-0.5">
+                  ↳ {c.reason}
                 </span>
               )}
-              <span className="text-muted leading-relaxed">
-                {c.definition_ja}
-              </span>
             </li>
           ))}
         </ul>
