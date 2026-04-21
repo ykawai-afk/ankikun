@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, type PanInfo } from "motion/react";
 import { ArrowLeft, BookOpen, GraduationCap, Volume2 } from "lucide-react";
 import confetti from "canvas-confetti";
 import type {
@@ -57,6 +57,15 @@ function clozeSentence(sentence: string, word: string): string {
   return sentence.replace(re, "_____");
 }
 
+type Counts = { again: number; hard: number; good: number; easy: number };
+
+function formatDuration(ms: number): string {
+  const s = Math.max(1, Math.round(ms / 1000));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r.toString().padStart(2, "0")}`;
+}
+
 export function ReviewSession({
   initialQueue,
   totalDue,
@@ -70,6 +79,14 @@ export function ReviewSession({
   const [revealed, setRevealed] = useState(false);
   const [flash, setFlash] = useState<null | Rating>(null);
   const [cloze, setCloze] = useState(false);
+  const [counts, setCounts] = useState<Counts>({
+    again: 0,
+    hard: 0,
+    good: 0,
+    easy: 0,
+  });
+  const startRef = useRef<number>(Date.now());
+  const [finishedAt, setFinishedAt] = useState<number | null>(null);
 
   useEffect(() => {
     const stored =
@@ -96,9 +113,17 @@ export function ReviewSession({
       setFlash(r);
       setTimeout(() => setFlash(null), 280);
 
+      setCounts((c) => ({
+        again: c.again + (r === 0 ? 1 : 0),
+        hard: c.hard + (r === 1 ? 1 : 0),
+        good: c.good + (r === 2 ? 1 : 0),
+        easy: c.easy + (r === 3 ? 1 : 0),
+      }));
+
       setRevealed(false);
       if (isLast) {
         setIdx(queue.length);
+        setFinishedAt(Date.now());
         haptic("heavy");
         confetti({
           particleCount: 120,
@@ -156,18 +181,29 @@ export function ReviewSession({
     return clozeSentence(card.example_en, card.word);
   }, [card, cloze]);
 
+  const onPanEnd = useCallback(
+    (_: unknown, info: PanInfo) => {
+      if (!revealed) return;
+      const { x, y } = info.offset;
+      const threshold = 70;
+      if (Math.abs(x) > Math.abs(y)) {
+        if (x > threshold) rate(2); // right → Good
+        else if (x < -threshold) rate(0); // left → Again
+      } else {
+        if (y < -threshold) rate(3); // up → Easy
+        else if (y > threshold) rate(1); // down → Hard
+      }
+    },
+    [rate, revealed]
+  );
+
   if (!card) {
     return (
-      <main className="flex flex-1 min-h-svh flex-col items-center justify-center gap-4 p-6 pb-20">
-        <div className="text-5xl">🎉</div>
-        <p className="text-base">お疲れさま</p>
-        <Link
-          href="/"
-          className="h-9 px-4 rounded-xl bg-accent text-accent-foreground flex items-center text-xs font-medium active:scale-95 transition"
-        >
-          ホームへ戻る
-        </Link>
-      </main>
+      <SessionSummary
+        counts={counts}
+        durationMs={(finishedAt ?? Date.now()) - startRef.current}
+        total={totalDue}
+      />
     );
   }
 
@@ -230,9 +266,15 @@ export function ReviewSession({
 
       {/* Card area */}
       <main className="flex-1 max-w-xl mx-auto w-full px-4 pb-32 flex flex-col">
-        <article
+        <motion.article
           key={card.id}
-          className="flex-1 flex flex-col items-center justify-center gap-3 py-5"
+          drag={revealed ? true : false}
+          dragElastic={0.18}
+          dragSnapToOrigin
+          dragConstraints={{ top: 0, bottom: 0, left: 0, right: 0 }}
+          onPanEnd={onPanEnd}
+          className="flex-1 flex flex-col items-center justify-center gap-3 py-5 touch-pan-y"
+          style={{ touchAction: revealed ? "none" : "pan-y" }}
         >
           {/* Tags */}
           {card.tags && card.tags.length > 0 && (
@@ -254,12 +296,12 @@ export function ReviewSession({
             <img
               src={card.image_url}
               alt=""
-              className="w-full max-w-xs aspect-[4/3] object-cover rounded-2xl"
+              className="w-full max-w-xs aspect-[4/3] object-cover rounded-2xl pointer-events-none"
               loading="lazy"
+              draggable={false}
             />
           )}
 
-          {/* Front */}
           {cloze && clozeFront ? (
             <div className="flex flex-col items-center gap-2 w-full max-w-md">
               <span className="text-[10px] uppercase tracking-widest text-muted">
@@ -369,7 +411,7 @@ export function ReviewSession({
               </motion.div>
             )}
           </AnimatePresence>
-        </article>
+        </motion.article>
       </main>
 
       {/* Bottom action */}
@@ -384,33 +426,111 @@ export function ReviewSession({
               <span className="ml-2 text-[10px] opacity-60">Space</span>
             </button>
           ) : (
-            <div className="grid grid-cols-4 gap-1.5">
-              {BUTTONS.map((b) => (
-                <button
-                  key={b.rating}
-                  onPointerDown={() => rate(b.rating)}
-                  style={{ touchAction: "manipulation" }}
-                  className={`h-12 rounded-xl font-semibold text-xs flex flex-col items-center justify-center gap-0 active:brightness-90 ${b.className}`}
-                >
-                  <span>{b.label}</span>
-                  <span className="text-[9px] opacity-80 font-normal">
-                    {b.hint}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-          {revealed && (
-            <div className="flex items-center justify-center gap-1.5 mt-2 text-[9px] text-muted">
-              <Kbd>1</Kbd>
-              <Kbd>2</Kbd>
-              <Kbd>3</Kbd>
-              <Kbd>4</Kbd>
-              <span className="ml-0.5">で評価</span>
-            </div>
+            <>
+              <div className="grid grid-cols-4 gap-1.5">
+                {BUTTONS.map((b) => (
+                  <button
+                    key={b.rating}
+                    onPointerDown={() => rate(b.rating)}
+                    style={{ touchAction: "manipulation" }}
+                    className={`h-12 rounded-xl font-semibold text-xs flex flex-col items-center justify-center gap-0 active:brightness-90 ${b.className}`}
+                  >
+                    <span>{b.label}</span>
+                    <span className="text-[9px] opacity-80 font-normal">
+                      {b.hint}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center justify-center gap-1 mt-2 text-[9px] text-muted">
+                <Kbd>1</Kbd>
+                <Kbd>2</Kbd>
+                <Kbd>3</Kbd>
+                <Kbd>4</Kbd>
+                <span className="mx-1">·</span>
+                <span>スワイプでも評価</span>
+              </div>
+            </>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function SessionSummary({
+  counts,
+  durationMs,
+  total,
+}: {
+  counts: Counts;
+  durationMs: number;
+  total: number;
+}) {
+  const reviewed = counts.again + counts.hard + counts.good + counts.easy;
+  const keptRate = reviewed
+    ? Math.round(((counts.good + counts.easy + counts.hard) / reviewed) * 100)
+    : 0;
+
+  return (
+    <motion.main
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex flex-1 min-h-svh flex-col items-center gap-5 p-6 pb-24"
+    >
+      <div className="w-full max-w-sm flex flex-col items-center gap-4 mt-8">
+        <div className="text-5xl">🎉</div>
+        <div className="text-center">
+          <p className="text-xl font-semibold">お疲れさま</p>
+          <p className="text-xs text-muted mt-0.5">
+            {reviewed}/{total} 完了 · {formatDuration(durationMs)}
+          </p>
+        </div>
+
+        <div className="w-full grid grid-cols-4 gap-1.5">
+          <Chip label="Again" value={counts.again} color="bg-red-500/10 text-red-600 dark:text-red-400" />
+          <Chip label="Hard" value={counts.hard} color="bg-amber-500/10 text-amber-600 dark:text-amber-400" />
+          <Chip label="Good" value={counts.good} color="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" />
+          <Chip label="Easy" value={counts.easy} color="bg-sky-500/10 text-sky-600 dark:text-sky-400" />
+        </div>
+
+        {reviewed > 0 && (
+          <div className="w-full rounded-xl bg-surface-2 p-3 flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-widest text-muted">
+              定着率
+            </span>
+            <span className="text-base font-semibold tabular-nums">
+              {keptRate}%
+            </span>
+          </div>
+        )}
+      </div>
+
+      <Link
+        href="/"
+        className="h-10 px-5 rounded-xl bg-accent text-accent-foreground flex items-center text-xs font-medium active:scale-95 transition"
+      >
+        ホームへ戻る
+      </Link>
+    </motion.main>
+  );
+}
+
+function Chip({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number;
+  color: string;
+}) {
+  return (
+    <div className={`rounded-xl p-2 flex flex-col items-center gap-0 ${color}`}>
+      <span className="text-[9px] uppercase tracking-widest font-semibold opacity-80">
+        {label}
+      </span>
+      <span className="text-lg font-semibold tabular-nums">{value}</span>
     </div>
   );
 }

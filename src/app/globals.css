@@ -28,6 +28,41 @@
   --warning: #f59e0b;
 }
 
+/* Subtle accent drift across the day. Surfaces stay neutral. */
+.tod-morning {
+  --accent: #ea580c;
+  --accent-soft: #fff4e6;
+}
+.tod-afternoon {
+  --accent: #4f46e5;
+  --accent-soft: #eef2ff;
+}
+.tod-evening {
+  --accent: #a855f7;
+  --accent-soft: #faf5ff;
+}
+.tod-night {
+  --accent: #6366f1;
+  --accent-soft: #e0e7ff;
+}
+
+.dark.tod-morning {
+  --accent: #fb923c;
+  --accent-soft: #2a1705;
+}
+.dark.tod-afternoon {
+  --accent: #818cf8;
+  --accent-soft: #1e1b4b;
+}
+.dark.tod-evening {
+  --accent: #c084fc;
+  --accent-soft: #2e1065;
+}
+.dark.tod-night {
+  --accent: #818cf8;
+  --accent-soft: #1e1b4b;
+}
+
 .dark {
   --background: #0b0b0c;
   --foreground: #fafafa;

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { BottomNav } from "@/components/bottom-nav";
+import { TodProvider } from "@/components/tod-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,6 +48,7 @@ export default function RootLayout({
     >
       <body className="min-h-svh flex flex-col">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <TodProvider />
           {children}
           <BottomNav />
         </ThemeProvider>
