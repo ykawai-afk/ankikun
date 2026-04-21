@@ -74,8 +74,7 @@ export function ReviewSession({
   totalDue: number;
 }) {
   const router = useRouter();
-  const [queue] = useState<Card[]>(initialQueue);
-  const [idx, setIdx] = useState(0);
+  const [queue, setQueue] = useState<Card[]>(initialQueue);
   const [revealed, setRevealed] = useState(false);
   const [flash, setFlash] = useState<null | Rating>(null);
   const [cloze, setCloze] = useState(false);
@@ -101,13 +100,12 @@ export function ReviewSession({
     }
   }, [cloze]);
 
-  const card = queue[idx] as Card | undefined;
+  const card = queue[0] as Card | undefined;
 
   const rate = useCallback(
     (r: Rating) => {
       if (!revealed || !card) return;
       const cardId = card.id;
-      const isLast = idx >= queue.length - 1;
 
       haptic(r === 0 ? "again" : r === 1 ? "medium" : r === 2 ? "good" : "light");
       setFlash(r);
@@ -121,8 +119,24 @@ export function ReviewSession({
       }));
 
       setRevealed(false);
-      if (isLast) {
-        setIdx(queue.length);
+
+      const willFinish = r !== 0 && queue.length <= 1;
+
+      setQueue((q) => {
+        const [head, ...rest] = q;
+        if (!head) return q;
+        if (r === 0) {
+          const insertAt = Math.min(rest.length, 3);
+          return [
+            ...rest.slice(0, insertAt),
+            head,
+            ...rest.slice(insertAt),
+          ];
+        }
+        return rest;
+      });
+
+      if (willFinish) {
         setFinishedAt(Date.now());
         haptic("heavy");
         confetti({
@@ -132,18 +146,16 @@ export function ReviewSession({
           origin: { x: 0.5, y: 0.7 },
           colors: ["#4f46e5", "#818cf8", "#f97316", "#fbbf24", "#10b981"],
         });
-      } else {
-        setIdx((i) => i + 1);
       }
 
       setTimeout(() => {
         const p = grade(cardId, r).catch((e) => {
           console.error("grade failed", e);
         });
-        if (isLast) p.finally(() => router.refresh());
+        if (willFinish) p.finally(() => router.refresh());
       }, 0);
     },
-    [card, idx, queue.length, revealed, router]
+    [card, queue.length, revealed, router]
   );
 
   const speak = useCallback((text: string) => {
@@ -201,9 +213,9 @@ export function ReviewSession({
     );
   }
 
-  const done = idx;
+  const remaining = queue.length;
+  const done = Math.max(0, totalDue - remaining);
   const progress = totalDue > 0 ? Math.min(100, (done / totalDue) * 100) : 0;
-  const remaining = Math.max(totalDue - done, 1);
 
   const flashColor =
     flash === 0
@@ -354,12 +366,12 @@ export function ReviewSession({
                     </div>
                   </div>
                 )}
-                <div className="rounded-xl bg-surface-2 p-3 flex flex-col gap-1.5">
-                  <div className="text-sm leading-relaxed">
+                <div className="rounded-2xl bg-surface-2 px-4 py-3.5 flex flex-col gap-1.5 border-l-2 border-accent">
+                  <div className="text-lg sm:text-xl font-semibold leading-snug tracking-tight">
                     {card.definition_ja}
                   </div>
                   {card.definition_en && (
-                    <div className="text-xs text-muted">
+                    <div className="text-[11px] text-muted leading-relaxed">
                       {card.definition_en}
                     </div>
                   )}
@@ -374,27 +386,27 @@ export function ReviewSession({
                     <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-surface-2 flex items-center justify-center opacity-70">
                       <Volume2 size={11} />
                     </div>
-                    <p className="text-xs leading-relaxed pr-7">
+                    <p className="text-sm leading-relaxed pr-7">
                       {card.example_en}
                     </p>
                     {card.example_ja && (
-                      <p className="text-xs text-muted leading-relaxed">
+                      <p className="text-[11px] text-muted leading-relaxed">
                         {card.example_ja}
                       </p>
                     )}
                   </button>
                 )}
                 {card.etymology && (
-                  <div className="rounded-xl bg-accent-soft p-3 flex gap-2">
+                  <div className="rounded-lg px-3 py-2 flex gap-2 bg-surface-2/40">
                     <BookOpen
-                      size={13}
-                      className="text-accent shrink-0 mt-0.5"
+                      size={11}
+                      className="text-muted shrink-0 mt-0.5 opacity-70"
                     />
                     <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="text-[9px] uppercase tracking-widest text-accent/80 font-semibold">
+                      <span className="text-[8px] uppercase tracking-widest text-muted font-semibold">
                         語源
                       </span>
-                      <p className="text-xs leading-relaxed">
+                      <p className="text-[11px] leading-relaxed text-muted">
                         {card.etymology}
                       </p>
                     </div>
@@ -533,19 +545,19 @@ function Chip({
 
 function RelatedWordsPanel({ items }: { items: RelatedWord[] }) {
   return (
-    <div className="rounded-xl bg-surface-2 p-3 flex flex-col gap-1.5">
-      <span className="text-[9px] uppercase tracking-widest text-muted font-semibold flex items-center gap-1">
-        <GraduationCap size={11} /> Word family
+    <div className="rounded-lg px-3 py-2 flex flex-col gap-1 bg-surface-2/40">
+      <span className="text-[8px] uppercase tracking-widest text-muted font-semibold flex items-center gap-1">
+        <GraduationCap size={10} className="opacity-70" /> Word family
       </span>
-      <ul className="flex flex-col gap-1">
+      <ul className="flex flex-col gap-0.5">
         {items.map((w, i) => (
           <li
             key={`${w.word}-${i}`}
-            className="flex items-baseline gap-2 text-xs"
+            className="flex items-baseline gap-2 text-[11px]"
           >
-            <span className="font-semibold">{w.word}</span>
+            <span className="font-medium">{w.word}</span>
             {w.part_of_speech && (
-              <span className="text-[10px] text-muted">{w.part_of_speech}</span>
+              <span className="text-[9px] text-muted">{w.part_of_speech}</span>
             )}
             <span className="text-muted">{w.meaning_ja}</span>
           </li>
@@ -565,11 +577,11 @@ function ExtraExamplesPanel({
   const registerLabel = (r: ExtraExample["register"]) =>
     r === "formal" ? "formal" : r === "conversational" ? "casual" : r === "idiom" ? "idiom" : null;
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-[9px] uppercase tracking-widest text-muted font-semibold px-1">
+    <div className="flex flex-col gap-1">
+      <span className="text-[8px] uppercase tracking-widest text-muted font-semibold px-1">
         他の例文
       </span>
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1">
         {items.map((e, i) => {
           const reg = registerLabel(e.register);
           return (
@@ -578,20 +590,20 @@ function ExtraExamplesPanel({
               type="button"
               onClick={() => onSpeak(e.en)}
               aria-label="例文を読み上げ"
-              className="rounded-xl border border-border p-3.5 flex flex-col gap-1 text-left active:scale-[0.99] active:bg-surface-2 transition relative"
+              className="rounded-lg border border-border/60 px-3 py-2.5 flex flex-col gap-0.5 text-left active:scale-[0.99] active:bg-surface-2 transition relative"
             >
-              <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-surface-2 flex items-center justify-center opacity-70">
-                <Volume2 size={11} />
+              <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-surface-2 flex items-center justify-center opacity-60">
+                <Volume2 size={10} />
               </div>
-              <div className="flex items-baseline justify-between gap-2 pr-7">
-                <p className="text-xs leading-relaxed">{e.en}</p>
+              <div className="flex items-baseline justify-between gap-2 pr-6">
+                <p className="text-[12px] leading-relaxed">{e.en}</p>
                 {reg && (
-                  <span className="text-[9px] uppercase tracking-widest text-muted shrink-0">
+                  <span className="text-[8px] uppercase tracking-widest text-muted shrink-0">
                     {reg}
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted leading-relaxed">{e.ja}</p>
+              <p className="text-[11px] text-muted leading-relaxed">{e.ja}</p>
             </button>
           );
         })}
