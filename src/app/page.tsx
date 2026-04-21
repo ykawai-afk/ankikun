@@ -4,7 +4,6 @@ import { getUserId } from "@/lib/user";
 import { PageShell } from "@/components/page-shell";
 import { ProgressRing } from "@/components/progress-ring";
 import { Heatmap } from "@/components/heatmap";
-import { PushToggle } from "@/components/push-toggle";
 import { computeStreak, reviewedTodayCount, countsByDay } from "@/lib/streak";
 
 export const dynamic = "force-dynamic";
@@ -144,8 +143,6 @@ export default async function Home() {
 
         {/* Activity heatmap */}
         <Heatmap countsByDay={heatmap} />
-
-        <PushToggle />
       </div>
     </PageShell>
   );

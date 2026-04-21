@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { type ReactNode } from "react";
 import { ThemeToggle } from "./theme-toggle";
+import { SettingsButton } from "./settings-sheet";
 
 export function PageShell({
   title,
@@ -16,9 +17,7 @@ export function PageShell({
     <div className="flex flex-col flex-1 min-h-svh pb-16">
       <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border">
         <div className="max-w-xl mx-auto flex items-center justify-between h-11 px-4">
-          <h1 className="text-sm font-semibold tracking-tight">
-            {title ?? "Ankikun"}
-          </h1>
+          <SettingsButton title={title ?? "Ankikun"} />
           <div className="flex items-center gap-0.5">
             {showAdd && (
               <Link
