@@ -39,12 +39,14 @@ export async function POST(req: NextRequest) {
   const FRENCH_ACCENTS =
     "word.ilike.%é%,word.ilike.%è%,word.ilike.%ê%,word.ilike.%à%,word.ilike.%â%,word.ilike.%ô%,word.ilike.%î%,word.ilike.%ï%,word.ilike.%ù%,word.ilike.%û%,word.ilike.%ç%,word.ilike.%ë%,word.ilike.%œ%,word.ilike.%æ%";
 
-  // Strategy A: direct delete where definition_ja mentions フランス語 (clear signal, skip Claude)
+  // Strategy A: direct delete where any JP field mentions フランス語 / 仏語 / 仏: etc.
   const { data: directHits } = await supabase
     .from("cards")
     .select("id, word")
     .eq("user_id", userId)
-    .ilike("definition_ja", "%フランス語%")
+    .or(
+      "definition_ja.ilike.%フランス語%,definition_ja.ilike.%仏語%,definition_ja.ilike.%（仏）%,definition_ja.ilike.%(仏)%,etymology.ilike.%フランス語%,etymology.ilike.%French%,example_ja.ilike.%フランス語%"
+    )
     .limit(limit);
 
   const directIds = (directHits ?? []).map((c) => c.id);
