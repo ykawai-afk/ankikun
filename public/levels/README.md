@@ -8,19 +8,25 @@ first 4 infant tiers), that's fine.
 ## Shared style (paste into every prompt)
 
 ```
-modern anime illustration, cel-shaded anime style, expressive large eyes,
-vibrant saturated colors, crisp clean linework, detailed character design,
-dynamic confident pose, single pastel background circle, full body
-character, centered composition, wholesome American setting but drawn in
-anime style (like Avatar: The Last Airbender / modern Crunchyroll series)
+stylized 3D anime character, cel-shaded 3D render in the style of Arcane
+and Spider-Verse, volumetric lighting, subtle rim light, soft ambient
+occlusion, painterly textures on fabric and hair, detailed material
+shading, expressive proportions, crisp clean outlines, pastel background
+circle, full body character, centered composition, dynamic confident pose,
+wholesome American setting
 --ar 1:1 --style raw --v 6.1
 ```
 
 **Specs**: 1024×1024 PNG. Transparent or bake in the pastel circle.
 
-**Tip**: If Midjourney drifts toward generic chibi, add `--niji 6` for a
-more anime-native model. For consistency across all 30, use the same
-`--seed` value throughout (pick one after the first result you like).
+**Tips**:
+- Use `--v 6.1` (not `--niji 6`) to get the dimensional 3D/CG feel — niji
+  tends to drift into flat 2D anime.
+- For consistency across all 30, pick the first result you like and reuse
+  its `--seed XXXXX` on every subsequent prompt. Seeds are in the MJ web
+  UI under the image info panel.
+- If you want even more of an Arcane look, add `painterly brushwork,
+  Fortiche studio style` to the per-character prompt.
 
 ## Recommended generation order
 
