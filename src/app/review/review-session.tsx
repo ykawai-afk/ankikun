@@ -243,6 +243,8 @@ export function ReviewSession({
     [card, queue.length, revealed, router, fetchSimilar]
   );
 
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
+
   const speak = useCallback((text: string) => {
     if (!text) return;
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -254,7 +256,22 @@ export function ReviewSession({
   }, []);
 
   const speakWord = useCallback(() => {
-    if (card) speak(card.word);
+    if (!card) return;
+    // Prefer native pronunciation MP3 when available, fall back to browser TTS.
+    if (card.audio_url) {
+      try {
+        if (typeof window === "undefined") return;
+        if (!audioElRef.current) audioElRef.current = new Audio();
+        const el = audioElRef.current;
+        el.src = card.audio_url;
+        el.currentTime = 0;
+        void el.play().catch(() => speak(card.word));
+        return;
+      } catch {
+        // Fall through to TTS
+      }
+    }
+    speak(card.word);
   }, [card, speak]);
 
   const [autoPlay, setAutoPlay] = useState(false);
@@ -264,8 +281,8 @@ export function ReviewSession({
     if (autoPlay) return;
     if (isTypingCard && typingPhase === "input") return;
     if (cloze && !revealed) return;
-    speak(card.word);
-  }, [card, revealed, cloze, autoPlay, speak, isTypingCard, typingPhase]);
+    speakWord();
+  }, [card, revealed, cloze, autoPlay, speakWord, isTypingCard, typingPhase]);
 
   useEffect(() => {
     if (!autoPlay || !card) return;

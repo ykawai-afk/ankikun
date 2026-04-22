@@ -43,6 +43,7 @@ export type Card = {
   source_context: string | null;
   etymology: string | null;
   user_note: string | null;
+  audio_url: string | null;
   image_url: string | null;
   related_words: RelatedWord[] | null;
   extra_examples: ExtraExample[] | null;

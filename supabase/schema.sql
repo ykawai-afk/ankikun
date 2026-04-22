@@ -22,6 +22,7 @@ create table if not exists public.cards (
   source_context text,
   etymology text,
   user_note text,
+  audio_url text,
 
   -- SM-2 state
   ease_factor real not null default 2.5,
