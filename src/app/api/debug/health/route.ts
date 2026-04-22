@@ -35,6 +35,12 @@ type Report = {
     new_intros_today: number;
     new_slots_left: number;
   };
+  audio: {
+    with_url: number;
+    empty_sentinel: number;
+    null: number;
+    coverage_pct: number;
+  };
   queue: {
     due_now: number;
     overdue_7d: number;
@@ -144,6 +150,31 @@ export async function GET(req: NextRequest) {
   const todayNewIntros = todayNewRes.count ?? 0;
   const DAILY_NEW_TARGET = 50;
   const newSlotsLeft = Math.max(0, DAILY_NEW_TARGET - todayNewIntros);
+
+  // Audio coverage
+  const [audioWithUrl, audioEmpty, audioNull] = await Promise.all([
+    db
+      .from("cards")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .like("audio_url", "https%"),
+    db
+      .from("cards")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("audio_url", ""),
+    db
+      .from("cards")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .is("audio_url", null),
+  ]);
+  const audioWithCount = audioWithUrl.count ?? 0;
+  const audioEmptyCount = audioEmpty.count ?? 0;
+  const audioNullCount = audioNull.count ?? 0;
+  const audioTotal = audioWithCount + audioEmptyCount + audioNullCount;
+  const audioCoveragePct =
+    audioTotal > 0 ? Math.round((audioWithCount / audioTotal) * 100) : 0;
 
   const lastLogAt = recentRes.data?.[0]?.reviewed_at ?? null;
   const lastLogAgoHours =
@@ -349,6 +380,12 @@ export async function GET(req: NextRequest) {
       new_intros_today: todayNewIntros,
       new_slots_left: newSlotsLeft,
     },
+    audio: {
+      with_url: audioWithCount,
+      empty_sentinel: audioEmptyCount,
+      null: audioNullCount,
+      coverage_pct: audioCoveragePct,
+    },
     queue: {
       due_now: dueNow.count ?? 0,
       overdue_7d: due7.count ?? 0,
@@ -412,6 +449,11 @@ function renderText(r: Report): string {
   p(`  target         : ${r.quota.daily_new_target}`);
   p(`  introduced     : ${r.quota.new_intros_today}`);
   p(`  remaining slot : ${r.quota.new_slots_left}`);
+  p("");
+  p("=== Audio coverage ===");
+  p(`  native URL     : ${r.audio.with_url} (${r.audio.coverage_pct}%)`);
+  p(`  empty sentinel : ${r.audio.empty_sentinel} (no audio available from API)`);
+  p(`  untouched      : ${r.audio.null}`);
   p("");
   p("=== Queue state ===");
   p(`  due now       : ${r.queue.due_now}`);
