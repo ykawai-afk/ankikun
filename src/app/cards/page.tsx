@@ -16,7 +16,7 @@ export default async function CardsPage() {
       "id, word, reading, part_of_speech, definition_ja, status, next_review_at, created_at, source_image_path, etymology, tags"
     )
     .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+    .order("next_review_at", { ascending: true });
 
   const rows: CardRow[] = ((cards ?? []) as Pick<
     Card,

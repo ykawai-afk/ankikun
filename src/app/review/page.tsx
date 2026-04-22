@@ -6,7 +6,7 @@ import type { Card } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-const BATCH_SIZE = 30;
+const BATCH_SIZE = 100;
 
 export default async function ReviewPage() {
   const supabase = createAdminClient();

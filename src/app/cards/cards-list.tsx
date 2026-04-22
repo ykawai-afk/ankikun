@@ -3,8 +3,10 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
-import { Search } from "lucide-react";
+import { Clock, Search, Sparkles } from "lucide-react";
 import type { Card } from "@/lib/types";
+
+type SortMode = "due" | "new";
 
 export type CardRow = Pick<
   Card,
@@ -46,6 +48,7 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | Card["status"]>("all");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [sortMode, setSortMode] = useState<SortMode>("due");
 
   const allTags = useMemo(() => {
     const set = new Set<string>();
@@ -56,7 +59,7 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
   }, [cards]);
 
   const filtered = useMemo(() => {
-    return cards.filter((c) => {
+    const base = cards.filter((c) => {
       if (statusFilter !== "all" && c.status !== statusFilter) return false;
       if (tagFilter && !(c.tags ?? []).includes(tagFilter)) return false;
       if (!query.trim()) return true;
@@ -66,10 +69,40 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
         c.definition_ja.toLowerCase().includes(q)
       );
     });
-  }, [cards, statusFilter, tagFilter, query]);
+    const sorted = [...base];
+    if (sortMode === "new") {
+      sorted.sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    } else {
+      sorted.sort(
+        (a, b) =>
+          new Date(a.next_review_at).getTime() -
+          new Date(b.next_review_at).getTime()
+      );
+    }
+    return sorted;
+  }, [cards, statusFilter, tagFilter, query, sortMode]);
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Sort toggle */}
+      <div className="inline-flex self-start rounded-full bg-surface-2 p-0.5 gap-0.5">
+        <SortTab
+          active={sortMode === "due"}
+          onClick={() => setSortMode("due")}
+          icon={<Clock size={11} />}
+          label="復習順"
+        />
+        <SortTab
+          active={sortMode === "new"}
+          onClick={() => setSortMode("new")}
+          icon={<Sparkles size={11} />}
+          label="新着順"
+        />
+      </div>
+
       {/* Search */}
       <div className="relative">
         <Search
@@ -207,5 +240,33 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
         </ul>
       )}
     </div>
+  );
+}
+
+function SortTab({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`h-7 px-3 rounded-full text-[11px] font-medium inline-flex items-center gap-1 transition active:scale-95 ${
+        active
+          ? "bg-background text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
+          : "text-muted hover:text-foreground"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
