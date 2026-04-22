@@ -22,11 +22,18 @@ type Report = {
   status: Record<string, number>;
   activity: {
     today: number;
+    today_new_intros: number;
+    today_reviews: number;
     last_7d: number;
     last_30d: number;
     all_time: number;
     last_log_at: string | null;
     last_log_ago_hours: number | null;
+  };
+  quota: {
+    daily_new_target: number;
+    new_intros_today: number;
+    new_slots_left: number;
   };
   queue: {
     due_now: number;
@@ -98,33 +105,45 @@ export async function GET(req: NextRequest) {
   status.total = Object.values(status).reduce((a, b) => a + b, 0);
 
   // Review activity
-  const [todayRes, wkRes, monthRes, allRes, recentRes] = await Promise.all([
-    db
-      .from("review_logs")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .gte("reviewed_at", startOfToday.toISOString()),
-    db
-      .from("review_logs")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .gte("reviewed_at", since7),
-    db
-      .from("review_logs")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .gte("reviewed_at", since30),
-    db
-      .from("review_logs")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId),
-    db
-      .from("review_logs")
-      .select("reviewed_at")
-      .eq("user_id", userId)
-      .order("reviewed_at", { ascending: false })
-      .limit(1),
-  ]);
+  const [todayRes, todayNewRes, wkRes, monthRes, allRes, recentRes] =
+    await Promise.all([
+      db
+        .from("review_logs")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .gte("reviewed_at", startOfToday.toISOString()),
+      db
+        .from("review_logs")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("prev_interval", 0)
+        .eq("prev_ease", 2.5)
+        .gte("reviewed_at", startOfToday.toISOString()),
+      db
+        .from("review_logs")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .gte("reviewed_at", since7),
+      db
+        .from("review_logs")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .gte("reviewed_at", since30),
+      db
+        .from("review_logs")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId),
+      db
+        .from("review_logs")
+        .select("reviewed_at")
+        .eq("user_id", userId)
+        .order("reviewed_at", { ascending: false })
+        .limit(1),
+    ]);
+  const todayTotal = todayRes.count ?? 0;
+  const todayNewIntros = todayNewRes.count ?? 0;
+  const DAILY_NEW_TARGET = 50;
+  const newSlotsLeft = Math.max(0, DAILY_NEW_TARGET - todayNewIntros);
 
   const lastLogAt = recentRes.data?.[0]?.reviewed_at ?? null;
   const lastLogAgoHours =
@@ -316,12 +335,19 @@ export async function GET(req: NextRequest) {
     generated_at: nowIso,
     status,
     activity: {
-      today: todayRes.count ?? 0,
+      today: todayTotal,
+      today_new_intros: todayNewIntros,
+      today_reviews: todayTotal - todayNewIntros,
       last_7d: wkRes.count ?? 0,
       last_30d: monthRes.count ?? 0,
       all_time: allRes.count ?? 0,
       last_log_at: lastLogAt,
       last_log_ago_hours: lastLogAgoHours,
+    },
+    quota: {
+      daily_new_target: DAILY_NEW_TARGET,
+      new_intros_today: todayNewIntros,
+      new_slots_left: newSlotsLeft,
     },
     queue: {
       due_now: dueNow.count ?? 0,
@@ -372,15 +398,20 @@ function renderText(r: Report): string {
   for (const [k, v] of Object.entries(r.status)) p(`  ${k.padEnd(10)}: ${v}`);
   p("");
   p("=== Review activity ===");
-  p(`  today    : ${r.activity.today}`);
-  p(`  last 7d  : ${r.activity.last_7d}`);
-  p(`  last 30d : ${r.activity.last_30d}`);
-  p(`  all time : ${r.activity.all_time}`);
+  p(`  today      : ${r.activity.today} (新規 ${r.activity.today_new_intros} + 復習 ${r.activity.today_reviews})`);
+  p(`  last 7d    : ${r.activity.last_7d}`);
+  p(`  last 30d   : ${r.activity.last_30d}`);
+  p(`  all time   : ${r.activity.all_time}`);
   if (r.activity.last_log_at) {
-    p(`  last log : ${r.activity.last_log_at} (${r.activity.last_log_ago_hours}h ago)`);
+    p(`  last log   : ${r.activity.last_log_at} (${r.activity.last_log_ago_hours}h ago)`);
   } else {
-    p(`  last log : (none)`);
+    p(`  last log   : (none)`);
   }
+  p("");
+  p("=== Today's new-card quota ===");
+  p(`  target         : ${r.quota.daily_new_target}`);
+  p(`  introduced     : ${r.quota.new_intros_today}`);
+  p(`  remaining slot : ${r.quota.new_slots_left}`);
   p("");
   p("=== Queue state ===");
   p(`  due now       : ${r.queue.due_now}`);
