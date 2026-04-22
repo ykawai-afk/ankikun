@@ -42,9 +42,11 @@ export default async function BookmarkletPage() {
           <span className="text-[9px] uppercase tracking-widest text-muted font-semibold">
             ドラッグ先 ↓
           </span>
+          {/* Server component — no event handlers. Clicking on the current
+              page is benign (the bookmarklet runs here and finds no selection),
+              so we don't need to preventDefault. */}
           <a
             href={href}
-            onClick={(e) => e.preventDefault()}
             className="inline-flex items-center gap-2 self-start rounded-xl bg-accent text-accent-foreground px-4 py-2.5 text-sm font-semibold shadow-[0_8px_24px_-10px_var(--accent)] cursor-grab active:cursor-grabbing"
             draggable
           >
