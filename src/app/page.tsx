@@ -4,20 +4,18 @@ import {
   ArrowRight,
   Flame,
   Keyboard,
-  Target,
-  Zap,
+  Sparkles,
 } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
 import { PageShell } from "@/components/page-shell";
-import { ProgressRing } from "@/components/progress-ring";
 import { Heatmap } from "@/components/heatmap";
 import { computeStreak, reviewedTodayCount, countsByDay } from "@/lib/streak";
 import { getLeechCount } from "@/lib/leech";
 
 export const dynamic = "force-dynamic";
 
-const DAILY_GOAL = 20;
+const DAILY_NEW_TARGET = 50;
 const MASTERED_THRESHOLD_DAYS = 21;
 const TYPING_MIN_INTERVAL = 14;
 const TYPING_MIN_COUNT = 5;
@@ -27,31 +25,37 @@ export default async function Home() {
   const userId = getUserId();
   const now = new Date().toISOString();
   const ninetyDaysAgo = new Date(Date.now() - 100 * 86_400_000).toISOString();
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
 
   const [
-    dueRes,
+    reviewDueRes,
+    newAvailRes,
     totalRes,
-    newRes,
     masteredRes,
     logsRes,
+    newIntrosTodayRes,
     leechCount,
     typingPoolRes,
   ] = await Promise.all([
+    // Cards that have been touched at least once AND are due
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .neq("status", "suspended")
+      .in("status", ["learning", "review"])
+      .lte("next_review_at", now),
+    // New cards not yet introduced
+    supabase
+      .from("cards")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("status", "new")
       .lte("next_review_at", now),
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId),
-    supabase
-      .from("cards")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("status", "new"),
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
@@ -63,6 +67,16 @@ export default async function Home() {
       .eq("user_id", userId)
       .gte("reviewed_at", ninetyDaysAgo)
       .order("reviewed_at", { ascending: false }),
+    // "New intro today" = a review_log where the card was at its factory state
+    // (interval 0, ease 2.5) right before this grading. Matches only the very
+    // first rating on a brand-new card.
+    supabase
+      .from("review_logs")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("prev_interval", 0)
+      .eq("prev_ease", 2.5)
+      .gte("reviewed_at", startOfToday.toISOString()),
     getLeechCount(userId),
     supabase
       .from("cards")
@@ -72,10 +86,11 @@ export default async function Home() {
       .gte("interval_days", TYPING_MIN_INTERVAL),
   ]);
 
-  const due = dueRes.count ?? 0;
+  const reviewDue = reviewDueRes.count ?? 0;
+  const newAvailable = newAvailRes.count ?? 0;
+  const newIntrosToday = newIntrosTodayRes.count ?? 0;
   const typingPool = typingPoolRes.count ?? 0;
   const total = totalRes.count ?? 0;
-  const fresh = newRes.count ?? 0;
   const mastered = masteredRes.count ?? 0;
   const masteredPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
   const reviewedAts = (logsRes.data ?? []).map((r) => r.reviewed_at as string);
@@ -83,50 +98,94 @@ export default async function Home() {
   const todayCount = reviewedTodayCount(reviewedAts);
   const heatmap = countsByDay(reviewedAts);
 
+  const newRemainingToday = Math.max(
+    0,
+    Math.min(DAILY_NEW_TARGET - newIntrosToday, newAvailable)
+  );
+  const newPct = Math.min(
+    100,
+    Math.round((newIntrosToday / DAILY_NEW_TARGET) * 100)
+  );
+  const todayDone = newIntrosToday >= DAILY_NEW_TARGET && reviewDue === 0;
+
   return (
     <PageShell>
       <div className="py-4 flex flex-col gap-5">
-        {/* Streak + daily progress */}
+        {/* Streak */}
         <section className="flex items-center gap-2">
           <StreakBadge days={streak} />
-          <div className="flex-1 rounded-xl bg-surface-2 p-2.5 flex items-center gap-2.5">
-            <ProgressRing value={todayCount} max={DAILY_GOAL} size={40} stroke={4}>
-              <span className="text-[10px] font-semibold tabular-nums">
-                {todayCount}
+          <span className="text-[10px] uppercase tracking-widest text-muted">
+            Today · 完了 {todayCount}
+          </span>
+        </section>
+
+        {/* Today panel: new quota + due review */}
+        <section className="flex flex-col gap-2.5">
+          <Link
+            href="/review"
+            className="group rounded-2xl bg-surface border border-border p-4 flex flex-col gap-3 active:scale-[0.995] transition hover:border-accent/40"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-widest text-muted font-semibold">
+                今日やるべき
               </span>
-            </ProgressRing>
-            <div className="flex flex-col">
-              <span className="text-[9px] uppercase tracking-widest text-muted flex items-center gap-1">
-                <Target size={9} /> Daily goal
-              </span>
-              <span className="text-xs font-medium">
-                {todayCount} / {DAILY_GOAL}
-              </span>
-              {todayCount >= DAILY_GOAL && (
-                <span className="text-[10px] text-success font-medium">
-                  達成！
+              {todayDone && (
+                <span className="text-[10px] font-semibold text-success inline-flex items-center gap-0.5">
+                  🎉 完了
                 </span>
               )}
             </div>
-          </div>
+
+            {/* 新規 quota */}
+            <div className="flex flex-col gap-1">
+              <div className="flex items-baseline justify-between">
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold">
+                  <Sparkles size={11} className="text-accent" />
+                  新規
+                </span>
+                <span className="text-[11px] tabular-nums">
+                  <span className="font-semibold">{newIntrosToday}</span>
+                  <span className="text-muted"> / {DAILY_NEW_TARGET}</span>
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-border/40 overflow-hidden">
+                <div
+                  style={{ width: `${newPct}%` }}
+                  className="h-full bg-accent transition-[width] duration-500 ease-out"
+                />
+              </div>
+              <span className="text-[10px] text-muted">
+                {newRemainingToday > 0
+                  ? `残り${newRemainingToday}枚`
+                  : newIntrosToday >= DAILY_NEW_TARGET
+                    ? "今日分の新規は達成"
+                    : "新規カードなし"}
+              </span>
+            </div>
+
+            {/* 復習 (variable) */}
+            <div className="flex items-center justify-between pt-1 border-t border-border/60">
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold">
+                <Flame size={11} className="text-flame" />
+                復習
+              </span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-semibold tabular-nums">
+                  {reviewDue}
+                </span>
+                <span className="text-[10px] text-muted">枚</span>
+                <ArrowRight
+                  size={12}
+                  className="ml-1 text-muted group-hover:translate-x-0.5 group-hover:text-accent transition"
+                />
+              </div>
+            </div>
+          </Link>
         </section>
 
-        {/* Hero */}
-        <section className="flex flex-col items-start gap-0.5">
-          <span className="inline-flex items-center gap-1 text-[10px] text-muted uppercase tracking-widest">
-            <Zap size={10} className="text-accent" /> Today
-          </span>
-          <div className="flex items-baseline gap-2">
-            <span className="text-[56px] font-semibold tabular-nums tracking-tight leading-none bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent">
-              {due}
-            </span>
-            <span className="text-sm text-muted">cards due</span>
-          </div>
-        </section>
-
-        {due === 0 && (
+        {todayDone && (
           <div className="h-10 rounded-xl bg-success-soft border border-success/20 flex items-center justify-center text-success text-xs font-medium">
-            🎉 今日の復習は完了
+            🎉 今日のノルマ完了 — また明日
           </div>
         )}
 
@@ -208,11 +267,10 @@ export default async function Home() {
           )}
         </section>
 
-        {/* Stats grid */}
-        <section className="grid grid-cols-3 gap-2">
-          <Stat label="New" value={fresh} tone="accent" />
+        {/* Totals */}
+        <section className="grid grid-cols-2 gap-2">
           <Stat label="Total" value={total} />
-          <Stat label="24h" value={todayCount} tone="flame" />
+          <Stat label="24h 完了" value={todayCount} tone="flame" />
         </section>
 
         {/* Activity heatmap */}

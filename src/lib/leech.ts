@@ -2,10 +2,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const WINDOW = 5;
 const THRESHOLD = 3;
+// Supabase returns the real as a JS number; use a small epsilon above the 1.3
+// floor so natural rounding doesn't miss cards that have truly bottomed out.
+const EASE_FLOOR_THRESHOLD = 1.35;
 
 type LogRow = { card_id: string; rating: number };
 
-async function getLeechCardIdsFromLogs(userId: string): Promise<string[]> {
+async function getLeechCardIdsFromLogs(userId: string): Promise<{ id: string; score: number }[]> {
   const supabase = createAdminClient();
   const { data: logs } = await supabase
     .from("review_logs")
@@ -29,15 +32,40 @@ async function getLeechCardIdsFromLogs(userId: string): Promise<string[]> {
     const again = ratings.filter((r) => r === 0).length;
     if (again >= THRESHOLD) leech.push({ id, score: again });
   }
-  leech.sort((a, b) => b.score - a.score);
-  return leech.map((l) => l.id);
+  return leech;
+}
+
+async function getEaseFloorCardIds(userId: string): Promise<string[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("cards")
+    .select("id")
+    .eq("user_id", userId)
+    .neq("status", "suspended")
+    .lte("ease_factor", EASE_FLOOR_THRESHOLD);
+  return (data ?? []).map((r) => r.id);
+}
+
+async function getCombinedLeechIds(userId: string): Promise<string[]> {
+  const [logBased, easeBased] = await Promise.all([
+    getLeechCardIdsFromLogs(userId),
+    getEaseFloorCardIds(userId),
+  ]);
+  const scored = new Map<string, number>();
+  // +1 per recent Again beyond threshold
+  for (const { id, score } of logBased) scored.set(id, score);
+  // Ease-floor hit gets a large score so they surface first in leech mode.
+  for (const id of easeBased) scored.set(id, (scored.get(id) ?? 0) + 5);
+  return [...scored.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([id]) => id);
 }
 
 export async function getLeechCount(userId: string): Promise<number> {
-  const ids = await getLeechCardIdsFromLogs(userId);
+  const ids = await getCombinedLeechIds(userId);
   return ids.length;
 }
 
 export async function getLeechCardIds(userId: string): Promise<string[]> {
-  return getLeechCardIdsFromLogs(userId);
+  return getCombinedLeechIds(userId);
 }

@@ -6,7 +6,10 @@ import type { Card } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-const BATCH_SIZE = 100;
+// All overdue learning/review cards must be cleared to keep SRS healthy, so
+// we cap generously to avoid runaway queues but don't aim to be restrictive.
+const REVIEW_FETCH_CAP = 300;
+const DAILY_NEW_TARGET = 50;
 const CARD_COLUMNS =
   "id, user_id, word, reading, part_of_speech, definition_ja, definition_en, example_en, example_ja, source_image_path, source_context, etymology, user_note, image_url, related_words, extra_examples, deep_dive, tags, ease_factor, interval_days, repetitions, next_review_at, last_reviewed_at, status, created_at, updated_at";
 
@@ -14,10 +17,24 @@ export default async function ReviewPage() {
   const supabase = createAdminClient();
   const userId = getUserId();
   const now = new Date().toISOString();
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
 
-  // Pull review/learning cards first, then new cards — due review work
-  // always gets queued ahead of introducing new material.
-  const [reviewRes, newRes, countRes] = await Promise.all([
+  // Count how many new cards the user has already introduced today, so we
+  // can serve only the remaining slot (up to DAILY_NEW_TARGET total).
+  const { count: newIntrosTodayCount } = await supabase
+    .from("review_logs")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("prev_interval", 0)
+    .eq("prev_ease", 2.5)
+    .gte("reviewed_at", startOfToday.toISOString());
+
+  const newIntrosToday = newIntrosTodayCount ?? 0;
+  const newSlotsLeft = Math.max(0, DAILY_NEW_TARGET - newIntrosToday);
+
+  // Due review/learning cards first, then a capped slice of new cards.
+  const [reviewRes, newRes] = await Promise.all([
     supabase
       .from("cards")
       .select(CARD_COLUMNS)
@@ -25,29 +42,25 @@ export default async function ReviewPage() {
       .in("status", ["learning", "review"])
       .lte("next_review_at", now)
       .order("next_review_at", { ascending: true })
-      .limit(BATCH_SIZE)
+      .limit(REVIEW_FETCH_CAP)
       .returns<Card[]>(),
-    supabase
-      .from("cards")
-      .select(CARD_COLUMNS)
-      .eq("user_id", userId)
-      .eq("status", "new")
-      .lte("next_review_at", now)
-      .order("next_review_at", { ascending: true })
-      .limit(BATCH_SIZE)
-      .returns<Card[]>(),
-    supabase
-      .from("cards")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .neq("status", "suspended")
-      .lte("next_review_at", now),
+    newSlotsLeft > 0
+      ? supabase
+          .from("cards")
+          .select(CARD_COLUMNS)
+          .eq("user_id", userId)
+          .eq("status", "new")
+          .lte("next_review_at", now)
+          .order("next_review_at", { ascending: true })
+          .limit(newSlotsLeft)
+          .returns<Card[]>()
+      : Promise.resolve({ data: [] as Card[] }),
   ]);
 
   const reviewCards = reviewRes.data ?? [];
   const newCards = newRes.data ?? [];
-  const queue = [...reviewCards, ...newCards].slice(0, BATCH_SIZE);
-  const totalDue = countRes.count ?? queue.length;
+  const queue = [...reviewCards, ...newCards];
+  const totalDue = queue.length;
 
   if (queue.length === 0) {
     return (
