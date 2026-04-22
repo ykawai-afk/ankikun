@@ -551,9 +551,9 @@ export default async function StatsPage() {
             )}
           </div>
 
-          {/* All milestones with ✓/○ */}
-          <SubTitle label="マイルストーン" />
-          <div className="flex flex-col gap-1">
+          {/* All milestones with ✓/○ — 30 levels scrollable */}
+          <SubTitle label="マイルストーン" right={`${VOCAB_MILESTONES.length}段階`} />
+          <div className="flex flex-col gap-0.5 max-h-80 overflow-y-auto pr-1 -mr-1">
             {VOCAB_MILESTONES.map((m) => {
               const reached = vocabEstimate >= m.value;
               const isCurrent = currentLevel?.value === m.value;
@@ -561,21 +561,27 @@ export default async function StatsPage() {
                 <div
                   key={m.label}
                   className={`flex items-center gap-2 text-[11px] rounded-lg px-2 py-1 ${
-                    isCurrent ? "bg-accent-soft" : ""
+                    isCurrent
+                      ? "bg-accent-soft border border-accent/20"
+                      : ""
                   }`}
                 >
-                  <span className="w-7 h-7 shrink-0 flex items-center justify-center">
+                  <span className="w-6 h-6 shrink-0 flex items-center justify-center">
                     <LevelAvatar
                       image={m.image}
                       emoji={m.emoji}
-                      size={24}
+                      size={22}
                       alt={m.label}
                     />
                   </span>
                   <div className="flex flex-col flex-1 min-w-0">
                     <span
-                      className={`font-semibold leading-tight truncate ${
-                        reached ? "" : "text-muted"
+                      className={`leading-tight truncate ${
+                        isCurrent
+                          ? "font-semibold"
+                          : reached
+                            ? "font-medium"
+                            : "text-muted"
                       }`}
                     >
                       {m.label}
@@ -585,7 +591,7 @@ export default async function StatsPage() {
                     </span>
                   </div>
                   <span
-                    className={`tabular-nums shrink-0 ${
+                    className={`tabular-nums text-[10px] shrink-0 ${
                       reached ? "text-success font-semibold" : "text-muted"
                     }`}
                   >

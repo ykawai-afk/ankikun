@@ -32,63 +32,45 @@ export type VocabMilestone = {
   image?: string;
 };
 
+// 30 levels, weighted toward the 8k–40k range where the user will actually
+// spend most of their time. Early bands (<8k) are sparse nostalgia; >40k is
+// aspirational. Each character has its own personality name and image slot.
 export const VOCAB_MILESTONES: VocabMilestone[] = [
-  {
-    value: 2_000,
-    label: "The Curious Toddler",
-    sub: "好奇心旺盛な幼児 · 米国3歳並み",
-    emoji: "🧸",
-    image: "/levels/toddler.png",
-  },
-  {
-    value: 4_000,
-    label: "The Playground Rascal",
-    sub: "園庭の暴れん坊 · 米国5歳並み",
-    emoji: "🧒",
-    image: "/levels/kindergartener.png",
-  },
-  {
-    value: 7_000,
-    label: "The Bookworm Beginner",
-    sub: "駆け出し本の虫 · 米国小2並み",
-    emoji: "📚",
-    image: "/levels/second-grader.png",
-  },
-  {
-    value: 10_000,
-    label: "The Nerdy 5th Grader",
-    sub: "ガリ勉小5 · 英検1級",
-    emoji: "🏫",
-    image: "/levels/fifth-grader.png",
-  },
-  {
-    value: 15_000,
-    label: "The Rebel Eighth Grader",
-    sub: "反抗期の中2 · TOEFL 100+",
-    emoji: "🎒",
-    image: "/levels/eighth-grader.png",
-  },
-  {
-    value: 20_000,
-    label: "The Varsity Valedictorian",
-    sub: "米高校トップ卒 · GPA 4.0",
-    emoji: "🎓",
-    image: "/levels/hs-senior.png",
-  },
-  {
-    value: 30_000,
-    label: "The Coffee-Fueled Grad",
-    sub: "徹夜明けの大卒 · 論文書き終えた顔",
-    emoji: "☕",
-    image: "/levels/college-grad.png",
-  },
-  {
-    value: 40_000,
-    label: "The Corner Office Pro",
-    sub: "役員室の教養層ネイティブ",
-    emoji: "👔",
-    image: "/levels/professional.png",
-  },
+  // Pre-literacy nostalgia (4)
+  { value: 500,   label: "The Babbling Baby",              sub: "初語の赤ちゃん",                         emoji: "👶", image: "/levels/babbling-baby.png" },
+  { value: 2_000, label: "The Toddler Chatterbox",         sub: "おしゃべり幼児 · 米国3歳並み",             emoji: "🧸", image: "/levels/toddler-chatterbox.png" },
+  { value: 4_000, label: "The Preschool Questioner",       sub: "質問魔の未就園児",                       emoji: "❓", image: "/levels/preschool-questioner.png" },
+  { value: 6_500, label: "The 1st Grade Storyteller",      sub: "小1の物語屋",                            emoji: "📖", image: "/levels/first-grade-storyteller.png" },
+
+  // User's current territory + growth (22)
+  { value: 8_000,  label: "The 2nd Grade Bookworm",         sub: "本の虫駆け出し · 米国小2",              emoji: "📚", image: "/levels/second-grade-bookworm.png" },
+  { value: 9_500,  label: "The 3rd Grade Daydreamer",       sub: "空想好きの小3",                          emoji: "💭", image: "/levels/third-grade-daydreamer.png" },
+  { value: 11_000, label: "The Spelling Bee Rookie",        sub: "スペリングビー新人",                     emoji: "🐝", image: "/levels/spelling-bee-rookie.png" },
+  { value: 12_500, label: "The Nerdy 5th Grader",           sub: "ガリ勉小5 · 英検1級",                    emoji: "🤓", image: "/levels/nerdy-fifth-grader.png" },
+  { value: 14_000, label: "The 6th Grade Know-It-All",      sub: "知ったかぶり小6",                        emoji: "☝️", image: "/levels/sixth-grade-know-it-all.png" },
+  { value: 15_500, label: "The Middle School Debater",      sub: "中学弁論部員",                           emoji: "🎙️", image: "/levels/middle-school-debater.png" },
+  { value: 17_000, label: "The Rebel 8th Grader",           sub: "反抗期の中2 · TOEFL 100+",              emoji: "🛹", image: "/levels/rebel-eighth-grader.png" },
+  { value: 18_500, label: "The Freshman Overachiever",      sub: "高1優等生",                              emoji: "🎒", image: "/levels/freshman-overachiever.png" },
+  { value: 20_000, label: "The AP Lit Sophomore",           sub: "AP英文学の高2",                          emoji: "📝", image: "/levels/ap-lit-sophomore.png" },
+  { value: 21_500, label: "The Junior Editor",              sub: "高3の新聞部編集",                        emoji: "📰", image: "/levels/junior-editor.png" },
+  { value: 23_000, label: "The Varsity Valedictorian",      sub: "卒業生総代 · GPA 4.0",                   emoji: "🏆", image: "/levels/varsity-valedictorian.png" },
+  { value: 24_500, label: "The National Merit Finalist",    sub: "国家奨学生決勝",                         emoji: "🥇", image: "/levels/national-merit-finalist.png" },
+  { value: 26_000, label: "The Liberal Arts Freshman",      sub: "教養学部1年",                            emoji: "🎭", image: "/levels/liberal-arts-freshman.png" },
+  { value: 27_500, label: "The English Major",              sub: "英文学専攻",                             emoji: "📗", image: "/levels/english-major.png" },
+  { value: 29_000, label: "The Creative Writing Workshopper", sub: "創作ワークショップ生",                 emoji: "✍️", image: "/levels/creative-writing-workshopper.png" },
+  { value: 30_500, label: "The Coffee-Fueled Grad",         sub: "徹夜明けの大卒",                         emoji: "☕", image: "/levels/coffee-fueled-grad.png" },
+  { value: 32_000, label: "The Graduate TA",                sub: "院生ティーチングアシスタント",           emoji: "🧑‍🏫", image: "/levels/graduate-ta.png" },
+  { value: 33_500, label: "The PhD Candidate",              sub: "博士候補",                               emoji: "🧪", image: "/levels/phd-candidate.png" },
+  { value: 35_000, label: "The Dissertation Survivor",      sub: "論文防衛突破者",                         emoji: "📑", image: "/levels/dissertation-survivor.png" },
+  { value: 36_500, label: "The Post-Doc Scholar",           sub: "ポスドク研究者",                         emoji: "🔬", image: "/levels/postdoc-scholar.png" },
+  { value: 38_000, label: "The Tenured Professor",          sub: "終身在職教授",                           emoji: "🎓", image: "/levels/tenured-professor.png" },
+  { value: 40_000, label: "The Corner Office Pro",          sub: "役員室の教養層ネイティブ",               emoji: "👔", image: "/levels/corner-office-pro.png" },
+
+  // Aspirational (4)
+  { value: 44_000, label: "The Newsroom Editor-in-Chief",   sub: "編集長",                                 emoji: "🗞️", image: "/levels/newsroom-editor.png" },
+  { value: 48_000, label: "The Published Novelist",         sub: "出版作家",                               emoji: "🖋️", image: "/levels/published-novelist.png" },
+  { value: 55_000, label: "The Lexicographer",              sub: "辞書編纂者",                             emoji: "📕", image: "/levels/lexicographer.png" },
+  { value: 70_000, label: "The Shakespearean Savant",       sub: "シェイクスピア級の語彙匠",              emoji: "🎭", image: "/levels/shakespearean-savant.png" },
 ];
 
 export function vocabCurrentLevel(
