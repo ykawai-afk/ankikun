@@ -2,12 +2,13 @@
 
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Layers, Play, type LucideIcon } from "lucide-react";
+import { BarChart3, Home, Layers, Play, type LucideIcon } from "lucide-react";
 
 const ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/", label: "ホーム", icon: Home },
   { href: "/review", label: "復習", icon: Play },
   { href: "/cards", label: "カード", icon: Layers },
+  { href: "/stats", label: "進捗", icon: BarChart3 },
 ];
 
 export function BottomNav() {
