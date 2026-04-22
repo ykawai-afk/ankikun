@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
 import { PageShell } from "@/components/page-shell";
+import { LevelAvatar } from "@/components/level-avatar";
 import { computeStreak } from "@/lib/streak";
 import {
   DAILY_NEW_TARGET,
@@ -412,8 +413,13 @@ export default async function StatsPage() {
           {/* Current level badge */}
           {currentLevel && (
             <div className="rounded-2xl bg-gradient-to-br from-accent-soft to-background border border-accent/20 p-4 flex items-center gap-3">
-              <div className="text-4xl shrink-0" aria-hidden>
-                {currentLevel.emoji}
+              <div className="w-16 h-16 shrink-0 flex items-center justify-center rounded-2xl bg-background/60 border border-border/40">
+                <LevelAvatar
+                  image={currentLevel.image}
+                  emoji={currentLevel.emoji}
+                  size={56}
+                  alt={currentLevel.label}
+                />
               </div>
               <div className="flex flex-col gap-0.5 min-w-0 flex-1">
                 <span className="text-[9px] uppercase tracking-widest text-accent font-semibold">
@@ -558,8 +564,13 @@ export default async function StatsPage() {
                     isCurrent ? "bg-accent-soft" : ""
                   }`}
                 >
-                  <span className="text-base w-6 text-center" aria-hidden>
-                    {m.emoji}
+                  <span className="w-7 h-7 shrink-0 flex items-center justify-center">
+                    <LevelAvatar
+                      image={m.image}
+                      emoji={m.emoji}
+                      size={24}
+                      alt={m.label}
+                    />
                   </span>
                   <div className="flex flex-col flex-1 min-w-0">
                     <span

@@ -21,60 +21,73 @@ export const VOCAB_CARD_WEIGHT: Record<string, number> = {
 };
 
 // Current-level badge. The highest entry whose `value` is ≤ estimate is
-// picked as the user's current milestone.
-export const VOCAB_MILESTONES: {
+// picked as the user's current milestone. Add an `image` path once a
+// Midjourney render is dropped into public/levels/ — UI falls back to the
+// emoji when the image field is missing.
+export type VocabMilestone = {
   value: number;
   label: string;
   sub: string;
   emoji: string;
-}[] = [
+  image?: string;
+};
+
+export const VOCAB_MILESTONES: VocabMilestone[] = [
   {
     value: 2_000,
     label: "Toddler",
     sub: "米国3歳児並み",
     emoji: "🧸",
+    image: "/levels/toddler.png",
   },
   {
     value: 4_000,
     label: "Kindergartener",
     sub: "米国5歳児 / 幼稚園卒",
     emoji: "🧒",
+    image: "/levels/kindergartener.png",
   },
   {
     value: 7_000,
     label: "2nd Grader",
     sub: "米国小2並み",
     emoji: "📚",
+    image: "/levels/second-grader.png",
   },
   {
     value: 10_000,
     label: "5th Grader",
     sub: "米国小5 / 英検1級",
     emoji: "🏫",
+    image: "/levels/fifth-grader.png",
   },
   {
     value: 15_000,
     label: "8th Grader",
     sub: "米国中2 / TOEFL 100+",
     emoji: "🎒",
+    image: "/levels/eighth-grader.png",
   },
   {
     value: 20_000,
     label: "HS Senior",
     sub: "米国高校卒",
     emoji: "🎓",
+    image: "/levels/hs-senior.png",
   },
   {
     value: 30_000,
     label: "College Grad",
     sub: "米国大卒",
     emoji: "📜",
+    image: "/levels/college-grad.png",
   },
   {
     value: 40_000,
     label: "Professional",
     sub: "教養層ネイティブ",
     emoji: "👔",
+    image: "/levels/professional.png",
   },
 ];
 
