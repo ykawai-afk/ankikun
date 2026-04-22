@@ -5,6 +5,7 @@ const TOKEN = "ec73c86045a2bba80efc3093aab90f07d599e843c7fe9b2f43f4d68c44739c3f"
 const URL = "https://ankikun.vercel.app/api/cards/bulk";
 const CSV =
   "/Users/yusukekawai/Desktop/mozu-matching-kun/emily_in_paris_vocab_public.csv";
+const TAG = "Emily in Paris";
 
 const raw = fs.readFileSync(CSV, "utf8");
 const parsed = Papa.parse(raw, {
@@ -28,6 +29,7 @@ const cards = parsed.data
     example_en: r.example_en ?? null,
     example_ja: r.example_ja ?? null,
     etymology: r.etymology ?? null,
+    tags: [TAG],
   }))
   .filter((c) => c.word && c.definition_ja);
 
