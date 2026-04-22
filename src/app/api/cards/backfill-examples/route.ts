@@ -79,7 +79,9 @@ export async function POST(req: NextRequest) {
   if (body.only_before) query.lt("updated_at", body.only_before);
   const { data: cards, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!cards?.length) return NextResponse.json({ updated: 0, remaining: 0 });
+  if (!cards?.length) {
+    return NextResponse.json({ processed: 0, updated: 0, remaining: 0 });
+  }
 
   const anthropic = getAnthropicClient();
   let updated = 0;
