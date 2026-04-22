@@ -5,9 +5,9 @@ import { getAnthropicClient } from "@/lib/anthropic";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 60;
 
-const BATCH = 10;
+const BATCH = 5;
 
 const Example = z.object({
   en: z.string(),
@@ -61,11 +61,15 @@ export async function POST(req: NextRequest) {
   const limit = Math.min(Math.max(body.limit ?? 150, 1), 1000);
 
   const supabase = createAdminClient();
+  // Order by updated_at ASC so each force-run picks up the longest-unprocessed
+  // cards first. After a batch is written, those cards' updated_at advances,
+  // naturally self-paginating across repeated invocations under tight timeouts.
   const query = supabase
     .from("cards")
     .select("id, word, part_of_speech, definition_ja")
     .eq("user_id", userId)
     .neq("status", "suspended")
+    .order("updated_at", { ascending: true })
     .limit(limit);
   if (!force) query.is("extra_examples", null);
   const { data: cards, error } = await query;
