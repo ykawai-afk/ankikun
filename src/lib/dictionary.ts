@@ -18,7 +18,7 @@ export async function fetchWordAudio(word: string): Promise<string | null> {
   try {
     const res = await fetch(
       `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(head)}`,
-      { signal: AbortSignal.timeout(8000) }
+      { signal: AbortSignal.timeout(15000) }
     );
     if (!res.ok) return null;
     const data = (await res.json()) as DictEntry[];

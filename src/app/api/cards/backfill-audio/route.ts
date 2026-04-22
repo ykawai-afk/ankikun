@@ -42,8 +42,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Look up each word in parallel but gated — Free Dictionary API doesn't
-  // publish rate limits, so we cap concurrency at 6 to stay polite.
-  const CONCURRENCY = 6;
+  // publish rate limits, but 6 concurrent calls from a serverless IP produced
+  // a 96% miss rate (almost certainly throttling). Cap at 2 + 150ms between
+  // worker loops to stay under whatever bucket they use.
+  const CONCURRENCY = 2;
   let i = 0;
   let updated = 0;
   let miss = 0;
@@ -53,6 +55,8 @@ export async function POST(req: NextRequest) {
     while (i < cards!.length) {
       const idx = i++;
       const card = cards![idx];
+      // Brief pacing between per-worker requests to avoid synchronized bursts.
+      await new Promise((r) => setTimeout(r, 150));
       const url = await fetchWordAudio(card.word);
       if (!url) {
         miss++;
