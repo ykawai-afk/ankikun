@@ -256,16 +256,6 @@ export default async function StatsPage() {
   const currentLevel = vocabCurrentLevel(vocabEstimate);
   const nextLevel = VOCAB_MILESTONES.find((m) => m.value > vocabEstimate);
   const toNext = nextLevel ? nextLevel.value - vocabEstimate : null;
-  // Per-level contribution breakdown for the explainer panel
-  const contribRows = (
-    ["B2", "C1", "C2", "unknown"] as const
-  )
-    .map((lv) => ({
-      lv,
-      count: cefrCounts[lv as keyof typeof cefrCounts] ?? 0,
-      weight: VOCAB_CARD_WEIGHT[lv] ?? 0,
-    }))
-    .filter((r) => r.count > 0);
   const cefrMax = Math.max(1, ...Object.values(cefrCounts));
   const cefrCoveredPct =
     active.length > 0
@@ -410,33 +400,31 @@ export default async function StatsPage() {
           title="推定総語彙"
           subtitle={`CEFR判定済 ${cefrCoveredPct}%`}
         >
-          {/* Current level badge */}
+          {/* Current level — centered hero */}
           {currentLevel && (
-            <div className="rounded-2xl bg-gradient-to-br from-accent-soft to-background border border-accent/20 p-4 flex items-center gap-3">
-              <div className="w-16 h-16 shrink-0 flex items-center justify-center rounded-2xl bg-background/60 border border-border/40">
+            <div className="rounded-2xl bg-gradient-to-br from-accent-soft to-background border border-accent/20 p-5 flex flex-col items-center gap-2 text-center">
+              <div className="w-32 h-32 flex items-center justify-center rounded-2xl bg-background/60 border border-border/40">
                 <LevelAvatar
                   image={currentLevel.image}
                   emoji={currentLevel.emoji}
-                  size={56}
+                  size={120}
                   alt={currentLevel.label}
                 />
               </div>
-              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                <span className="text-[9px] uppercase tracking-widest text-accent font-semibold">
-                  Current Level
-                </span>
-                <span className="text-base font-semibold leading-tight truncate">
-                  {currentLevel.label}
-                </span>
-                <span className="text-[11px] text-muted leading-tight">
-                  {currentLevel.sub}
-                </span>
-              </div>
-              <div className="flex flex-col items-end gap-0.5 shrink-0">
-                <span className="text-2xl font-semibold tabular-nums leading-none bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent">
+              <span className="text-[9px] uppercase tracking-widest text-accent font-semibold mt-1">
+                Current Level
+              </span>
+              <span className="text-lg font-semibold leading-tight px-2">
+                {currentLevel.label}
+              </span>
+              <span className="text-[11px] text-muted leading-snug px-2">
+                {currentLevel.sub}
+              </span>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-4xl font-semibold tabular-nums leading-none bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent">
                   {vocabEstimate.toLocaleString()}
                 </span>
-                <span className="text-[9px] text-muted">語 受動</span>
+                <span className="text-xs text-muted">語 受動</span>
               </div>
             </div>
           )}
@@ -444,11 +432,11 @@ export default async function StatsPage() {
           {/* Next-level progress */}
           {nextLevel && toNext !== null && (
             <div className="flex flex-col gap-1 mt-1">
-              <div className="flex items-baseline justify-between text-[10px]">
-                <span className="text-muted">
-                  次: {nextLevel.emoji} {nextLevel.label}
+              <div className="flex items-baseline justify-between text-[10px] gap-2">
+                <span className="text-muted truncate">
+                  次: {nextLevel.label}
                 </span>
-                <span className="tabular-nums">
+                <span className="tabular-nums shrink-0">
                   あと <span className="font-semibold">{toNext.toLocaleString()}</span> 語
                 </span>
               </div>
@@ -469,44 +457,6 @@ export default async function StatsPage() {
               </div>
             </div>
           )}
-
-          {/* Explainer */}
-          <div className="rounded-xl bg-background/50 p-3 flex flex-col gap-1 mt-2">
-            <span className="text-[9px] uppercase tracking-widest text-muted font-semibold">
-              内訳
-            </span>
-            <div className="flex items-baseline justify-between text-[11px]">
-              <span>経歴ベース</span>
-              <span className="tabular-nums font-semibold">
-                {VOCAB_BASELINE.toLocaleString()}
-              </span>
-            </div>
-            <span className="text-[9px] text-muted leading-tight -mt-0.5">
-              鉄壁完遂 + 一橋合格 → 減衰後 の控えめ見積り
-            </span>
-            <div className="flex items-baseline justify-between text-[11px] mt-1 pt-1 border-t border-border/30">
-              <span>Ankikun 加算</span>
-              <span className="tabular-nums font-semibold text-accent">
-                +{Math.round(vocabCardContribution).toLocaleString()}
-              </span>
-            </div>
-            {contribRows.map((r) => (
-              <div
-                key={r.lv}
-                className="flex items-baseline justify-between text-[10px] text-muted pl-3"
-              >
-                <span>
-                  {r.lv} {r.count}枚 × {r.weight}
-                </span>
-                <span className="tabular-nums">
-                  {Math.round(r.count * r.weight).toLocaleString()}
-                </span>
-              </div>
-            ))}
-            <span className="text-[9px] text-muted leading-tight mt-0.5">
-              B1以下は既知前提で加算なし。C1以上ほど重み大
-            </span>
-          </div>
 
           {/* CEFR distribution histogram */}
           <SubTitle label="CEFR分布" />
