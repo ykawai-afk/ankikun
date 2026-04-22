@@ -8,14 +8,19 @@ first 4 infant tiers), that's fine.
 ## Shared style (paste into every prompt)
 
 ```
-flat illustration, MBTI 16 personalities style, rounded geometric shapes,
-clean line art, soft cel shading, soft pastel palette, single pastel
-background circle, full body character, centered composition, wholesome
-American children's book energy
+modern anime illustration, cel-shaded anime style, expressive large eyes,
+vibrant saturated colors, crisp clean linework, detailed character design,
+dynamic confident pose, single pastel background circle, full body
+character, centered composition, wholesome American setting but drawn in
+anime style (like Avatar: The Last Airbender / modern Crunchyroll series)
 --ar 1:1 --style raw --v 6.1
 ```
 
 **Specs**: 1024×1024 PNG. Transparent or bake in the pastel circle.
+
+**Tip**: If Midjourney drifts toward generic chibi, add `--niji 6` for a
+more anime-native model. For consistency across all 30, use the same
+`--seed` value throughout (pick one after the first result you like).
 
 ## Recommended generation order
 
