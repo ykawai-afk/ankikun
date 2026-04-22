@@ -103,7 +103,7 @@ export default async function StatsPage() {
       .gte("interval_days", MASTERED_THRESHOLD_DAYS),
     supabase
       .from("cards")
-      .select("interval_days, ease_factor, difficulty")
+      .select("id, interval_days, ease_factor, repetitions, difficulty")
       .eq("user_id", userId)
       .neq("status", "suspended"),
     supabase
@@ -112,7 +112,7 @@ export default async function StatsPage() {
       .eq("user_id", userId),
     supabase
       .from("review_logs")
-      .select("rating, prev_interval, prev_ease, reviewed_at")
+      .select("card_id, rating, prev_interval, prev_ease, reviewed_at")
       .eq("user_id", userId)
       .gte("reviewed_at", retentionFrom)
       .order("reviewed_at", { ascending: true }),
@@ -222,8 +222,10 @@ export default async function StatsPage() {
 
   // === Interval distribution ===
   const active = (activeRes.data ?? []) as {
+    id: string;
     interval_days: number;
     ease_factor: number;
+    repetitions: number;
     difficulty: string | null;
   }[];
 
@@ -233,26 +235,57 @@ export default async function StatsPage() {
   const cefrCounts: Record<CEFRKey | "unknown", number> = {
     A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0, unknown: 0,
   };
-  // "Mastered" bucket — only cards that have made it past the 21-day
-  // interval count toward the vocab tally, so the number reflects what
-  // actually stuck rather than everything the user has ever seen.
+  // Mastered = canonical (≥21d) OR "one-shot correct": answered at least
+  // once and ease never dropped from the 2.5 starting value (never Hard/
+  // Again). Captures cards the user already knew coming in without waiting
+  // weeks for the 21d threshold.
   const masteredCefrCounts: Record<CEFRKey | "unknown", number> = {
     A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0, unknown: 0,
   };
+  const cardDiffLookup = new Map<string, CEFRKey | "unknown">();
+  const isMastered = (c: { interval_days: number; repetitions: number; ease_factor: number }) =>
+    c.interval_days >= MASTERED_THRESHOLD_DAYS ||
+    (c.repetitions >= 1 && c.ease_factor >= 2.5);
+
   for (const c of active) {
     const key = (
       c.difficulty && cefrOrder.includes(c.difficulty as CEFRKey)
         ? c.difficulty
         : "unknown"
     ) as CEFRKey | "unknown";
+    cardDiffLookup.set(c.id, key);
     cefrCounts[key]++;
-    if (c.interval_days >= MASTERED_THRESHOLD_DAYS) {
-      masteredCefrCounts[key]++;
+    if (isMastered(c)) masteredCefrCounts[key]++;
+  }
+
+  // Per-CEFR accuracy over the retention window (last 8 weeks). Used to
+  // down-weight contributions from levels where the user is still shaky.
+  const cefrReviewTotals: Record<string, number> = {};
+  const cefrNonAgain: Record<string, number> = {};
+  for (const l of recentLogs.data ?? []) {
+    const lv = cardDiffLookup.get(l.card_id as string) ?? "unknown";
+    cefrReviewTotals[lv] = (cefrReviewTotals[lv] ?? 0) + 1;
+    if ((l.rating as number) !== 0) {
+      cefrNonAgain[lv] = (cefrNonAgain[lv] ?? 0) + 1;
     }
   }
+  const MIN_REVIEWS_FOR_ACC = 5;
+  const cefrAccuracy: Record<string, number> = {};
+  for (const lv of [...cefrOrder, "unknown"] as const) {
+    const total = cefrReviewTotals[lv] ?? 0;
+    if (total < MIN_REVIEWS_FOR_ACC) {
+      cefrAccuracy[lv] = 1; // not enough data → don't penalize
+    } else {
+      cefrAccuracy[lv] = (cefrNonAgain[lv] ?? 0) / total;
+    }
+  }
+
   const vocabCardContribution = Object.entries(masteredCefrCounts).reduce(
     (sum, [level, count]) =>
-      sum + count * (VOCAB_CARD_WEIGHT[level] ?? 0),
+      sum +
+      count *
+        (VOCAB_CARD_WEIGHT[level] ?? 0) *
+        (cefrAccuracy[level] ?? 1),
     0
   );
   const masteredCount = Object.values(masteredCefrCounts).reduce(
@@ -484,12 +517,17 @@ export default async function StatsPage() {
             </div>
           )}
 
-          {/* CEFR distribution histogram */}
-          <SubTitle label="CEFR分布" />
+          {/* CEFR distribution histogram with accuracy */}
+          <SubTitle label="CEFR分布" right="カード数 · 正答率" />
           <div className="flex flex-col gap-1">
             {cefrOrder.map((lv) => {
               const n = cefrCounts[lv];
               const pct = (n / cefrMax) * 100;
+              const reviews = cefrReviewTotals[lv] ?? 0;
+              const acc =
+                reviews >= MIN_REVIEWS_FOR_ACC
+                  ? Math.round((cefrAccuracy[lv] ?? 0) * 100)
+                  : null;
               const tone =
                 lv === "A1" || lv === "A2"
                   ? "bg-muted"
@@ -516,6 +554,19 @@ export default async function StatsPage() {
                   </div>
                   <span className="w-10 text-right tabular-nums font-medium">
                     {n}
+                  </span>
+                  <span
+                    className={`w-10 text-right text-[10px] tabular-nums ${
+                      acc === null
+                        ? "text-muted/50"
+                        : acc >= 80
+                          ? "text-success font-semibold"
+                          : acc >= 60
+                            ? "text-muted"
+                            : "text-danger"
+                    }`}
+                  >
+                    {acc === null ? "—" : `${acc}%`}
                   </span>
                 </div>
               );

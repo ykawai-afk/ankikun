@@ -55,6 +55,8 @@ type Report = {
     current_level: string | null;
     cefr: Record<string, number>;
     cefr_mastered: Record<string, number>;
+    cefr_accuracy: Record<string, number>;
+    cefr_review_count: Record<string, number>;
   };
   queue: {
     due_now: number;
@@ -190,56 +192,73 @@ export async function GET(req: NextRequest) {
   const audioCoveragePct =
     audioTotal > 0 ? Math.round((audioWithCount / audioTotal) * 100) : 0;
 
-  // CEFR counts — total (for distribution) and mastered-only (drives the
-  // vocab estimate so the number reflects retained knowledge, not exposure).
+  // CEFR counts + per-level accuracy. Use the active card+log data we
+  // already have via activeCards/recentLogs further up the file; if those
+  // aren't populated the fetch below is a safe fallback.
   const MASTERED_DAYS = 21;
   const cefrLevels = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
-  const cefrResults = await Promise.all(
-    cefrLevels.map((lv) =>
-      db
-        .from("cards")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .neq("status", "suspended")
-        .eq("difficulty", lv)
-    )
-  );
-  const cefrMasteredResults = await Promise.all(
-    cefrLevels.map((lv) =>
-      db
-        .from("cards")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .neq("status", "suspended")
-        .gte("interval_days", MASTERED_DAYS)
-        .eq("difficulty", lv)
-    )
-  );
-  const cefrNullRes = await db
+  const MIN_REVIEWS_FOR_ACC = 5;
+
+  const { data: cardsForCefr } = await db
     .from("cards")
-    .select("*", { count: "exact", head: true })
+    .select("id, difficulty, interval_days, repetitions, ease_factor")
     .eq("user_id", userId)
-    .neq("status", "suspended")
-    .is("difficulty", null);
-  const cefrNullMasteredRes = await db
-    .from("cards")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .neq("status", "suspended")
-    .gte("interval_days", MASTERED_DAYS)
-    .is("difficulty", null);
-  const cefrCounts: Record<string, number> = {
-    unknown: cefrNullRes.count ?? 0,
-  };
-  const cefrMastered: Record<string, number> = {
-    unknown: cefrNullMasteredRes.count ?? 0,
-  };
-  cefrLevels.forEach((lv, i) => {
-    cefrCounts[lv] = cefrResults[i].count ?? 0;
-    cefrMastered[lv] = cefrMasteredResults[i].count ?? 0;
+    .neq("status", "suspended");
+  const cards = cardsForCefr ?? [];
+  const diffLookup = new Map<string, string>();
+  const cefrCounts: Record<string, number> = { unknown: 0 };
+  const cefrMastered: Record<string, number> = { unknown: 0 };
+  cefrLevels.forEach((lv) => {
+    cefrCounts[lv] = 0;
+    cefrMastered[lv] = 0;
   });
+  for (const c of cards) {
+    const lv =
+      c.difficulty && cefrLevels.includes(c.difficulty as (typeof cefrLevels)[number])
+        ? c.difficulty
+        : "unknown";
+    diffLookup.set(c.id as string, lv as string);
+    cefrCounts[lv]++;
+    const id = c as {
+      interval_days: number;
+      repetitions: number;
+      ease_factor: number;
+    };
+    const mastered =
+      id.interval_days >= MASTERED_DAYS ||
+      (id.repetitions >= 1 && id.ease_factor >= 2.5);
+    if (mastered) cefrMastered[lv]++;
+  }
+
+  const accSince = new Date(
+    now.getTime() - 60 * DAY_MS
+  ).toISOString();
+  const { data: accLogs } = await db
+    .from("review_logs")
+    .select("card_id, rating")
+    .eq("user_id", userId)
+    .gte("reviewed_at", accSince);
+  const cefrReviews: Record<string, number> = {};
+  const cefrNonAgain: Record<string, number> = {};
+  for (const l of accLogs ?? []) {
+    const lv = diffLookup.get(l.card_id as string) ?? "unknown";
+    cefrReviews[lv] = (cefrReviews[lv] ?? 0) + 1;
+    if ((l.rating as number) !== 0) {
+      cefrNonAgain[lv] = (cefrNonAgain[lv] ?? 0) + 1;
+    }
+  }
+  const cefrAcc: Record<string, number> = {};
+  for (const lv of [...cefrLevels, "unknown"] as const) {
+    const total = cefrReviews[lv] ?? 0;
+    cefrAcc[lv] =
+      total < MIN_REVIEWS_FOR_ACC
+        ? 1
+        : (cefrNonAgain[lv] ?? 0) / total;
+  }
+
   const vocabContribution = Object.entries(cefrMastered).reduce(
-    (sum, [lv, count]) => sum + count * (VOCAB_CARD_WEIGHT[lv] ?? 0),
+    (sum, [lv, count]) =>
+      sum + count * (VOCAB_CARD_WEIGHT[lv] ?? 0) * (cefrAcc[lv] ?? 1),
     0
   );
   const vocabEstimate = Math.round(VOCAB_BASELINE + vocabContribution);
@@ -465,6 +484,10 @@ export async function GET(req: NextRequest) {
         : null,
       cefr: cefrCounts,
       cefr_mastered: cefrMastered,
+      cefr_accuracy: Object.fromEntries(
+        Object.entries(cefrAcc).map(([k, v]) => [k, Math.round(v * 100) / 100])
+      ),
+      cefr_review_count: cefrReviews,
     },
     queue: {
       due_now: dueNow.count ?? 0,
@@ -535,13 +558,15 @@ function renderText(r: Report): string {
   p(`  estimate         : ${r.vocab.estimate.toLocaleString()} 語`);
   p(`  baseline         : ${r.vocab.baseline.toLocaleString()}`);
   p(`  + Ankikun (≥21d) : ${r.vocab.card_contribution.toLocaleString()}`);
-  p(`  CEFR distribution (total · ≥21d):`);
+  p(`  CEFR (total · mastered · acc · reviews60d):`);
   for (const [lv, n] of Object.entries(r.vocab.cefr)) {
-    const m =
-      (r.vocab as { cefr_mastered?: Record<string, number> }).cefr_mastered?.[
-        lv
-      ] ?? 0;
-    p(`    ${lv.padEnd(10)}: ${String(n).padStart(4)} · ≥21d ${m}`);
+    const m = r.vocab.cefr_mastered?.[lv] ?? 0;
+    const a = r.vocab.cefr_accuracy?.[lv];
+    const rc = r.vocab.cefr_review_count?.[lv] ?? 0;
+    const accStr = a === undefined ? "—" : `${Math.round(a * 100)}%`;
+    p(
+      `    ${lv.padEnd(10)}: ${String(n).padStart(4)} · mastered ${String(m).padStart(3)} · acc ${accStr.padStart(4)} · reviews ${rc}`
+    );
   }
   p("");
   p("=== Audio coverage ===");
