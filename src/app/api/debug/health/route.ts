@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
-import { DAILY_NEW_TARGET } from "@/lib/goals";
+import {
+  DAILY_NEW_TARGET,
+  VOCAB_BASELINE,
+  VOCAB_CARD_WEIGHT,
+  VOCAB_MILESTONES,
+  vocabCurrentLevel,
+} from "@/lib/goals";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +47,13 @@ type Report = {
     empty_sentinel: number;
     null: number;
     coverage_pct: number;
+  };
+  vocab: {
+    baseline: number;
+    card_contribution: number;
+    estimate: number;
+    current_level: string | null;
+    cefr: Record<string, number>;
   };
   queue: {
     due_now: number;
@@ -175,6 +188,36 @@ export async function GET(req: NextRequest) {
   const audioTotal = audioWithCount + audioEmptyCount + audioNullCount;
   const audioCoveragePct =
     audioTotal > 0 ? Math.round((audioWithCount / audioTotal) * 100) : 0;
+
+  // CEFR counts + vocab estimate
+  const cefrLevels = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
+  const cefrResults = await Promise.all(
+    cefrLevels.map((lv) =>
+      db
+        .from("cards")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .neq("status", "suspended")
+        .eq("difficulty", lv)
+    )
+  );
+  const cefrNullRes = await db
+    .from("cards")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .neq("status", "suspended")
+    .is("difficulty", null);
+  const cefrCounts: Record<string, number> = { unknown: cefrNullRes.count ?? 0 };
+  cefrLevels.forEach((lv, i) => {
+    cefrCounts[lv] = cefrResults[i].count ?? 0;
+  });
+  const vocabContribution = Object.entries(cefrCounts).reduce(
+    (sum, [lv, count]) => sum + count * (VOCAB_CARD_WEIGHT[lv] ?? 0),
+    0
+  );
+  const vocabEstimate = Math.round(VOCAB_BASELINE + vocabContribution);
+  const currentLevel = vocabCurrentLevel(vocabEstimate);
+  void VOCAB_MILESTONES;
 
   const lastLogAt = recentRes.data?.[0]?.reviewed_at ?? null;
   const lastLogAgoHours =
@@ -386,6 +429,15 @@ export async function GET(req: NextRequest) {
       null: audioNullCount,
       coverage_pct: audioCoveragePct,
     },
+    vocab: {
+      baseline: VOCAB_BASELINE,
+      card_contribution: Math.round(vocabContribution),
+      estimate: vocabEstimate,
+      current_level: currentLevel
+        ? `${currentLevel.emoji} ${currentLevel.label} (${currentLevel.sub})`
+        : null,
+      cefr: cefrCounts,
+    },
     queue: {
       due_now: dueNow.count ?? 0,
       overdue_7d: due7.count ?? 0,
@@ -449,6 +501,16 @@ function renderText(r: Report): string {
   p(`  target         : ${r.quota.daily_new_target}`);
   p(`  introduced     : ${r.quota.new_intros_today}`);
   p(`  remaining slot : ${r.quota.new_slots_left}`);
+  p("");
+  p("=== Vocabulary estimate ===");
+  p(`  current level  : ${r.vocab.current_level ?? "—"}`);
+  p(`  estimate       : ${r.vocab.estimate.toLocaleString()} 語`);
+  p(`  baseline       : ${r.vocab.baseline.toLocaleString()}`);
+  p(`  + Ankikun      : ${r.vocab.card_contribution.toLocaleString()}`);
+  p(`  CEFR distribution:`);
+  for (const [lv, n] of Object.entries(r.vocab.cefr)) {
+    p(`    ${lv.padEnd(10)}: ${n}`);
+  }
   p("");
   p("=== Audio coverage ===");
   p(`  native URL     : ${r.audio.with_url} (${r.audio.coverage_pct}%)`);
