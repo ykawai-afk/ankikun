@@ -67,7 +67,8 @@ export async function POST(req: NextRequest) {
 
     try {
       const result = await anthropic.messages.parse({
-        model: "claude-opus-4-7",
+        // Haiku: IPA is a near-lookup task, no reasoning or stylistic quality needed.
+        model: "claude-haiku-4-5",
         max_tokens: 4000,
         system: PROMPT,
         messages: [

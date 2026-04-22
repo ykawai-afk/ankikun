@@ -86,7 +86,8 @@ export async function POST(
     .join("\n");
 
   const result = await anthropic.messages.parse({
-    model: "claude-opus-4-7",
+    // Sonnet: structured etymology/cognates output without the Opus premium.
+    model: "claude-sonnet-4-6",
     max_tokens: 2000,
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: userMessage }],

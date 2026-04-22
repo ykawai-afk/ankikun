@@ -307,7 +307,8 @@ ${title ? `ページ: ${title}\n` : ""}${sourceUrl ? `URL: ${sourceUrl}\n` : ""}
 この語について単語カードを1枚作成してください。`;
 
       const result = await anthropic.messages.parse({
-        model: "claude-opus-4-7",
+        // Haiku: one-word dictionary lookup — no reasoning, no vision.
+        model: "claude-haiku-4-5",
         max_tokens: 4000,
         system: SINGLE_WORD_PROMPT,
         messages: [{ role: "user", content: payload }],
@@ -371,7 +372,9 @@ ${sourceUrl ? `出典URL: ${sourceUrl}\n` : ""}${title ? `タイトル: ${title}
 ${trimmed.slice(0, 18000)}`;
 
     const result = await anthropic.messages.parse({
-      model: "claude-opus-4-7",
+      // Sonnet: text extraction from bookmarklet-selected passage — no vision,
+      // structured output is well within its capability.
+      model: "claude-sonnet-4-6",
       max_tokens: 16000,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: payload }],
@@ -466,7 +469,9 @@ export async function processUrlIngest({
     const { text, title } = await fetchArticleText(url);
     const anthropic = getAnthropicClient();
     const result = await anthropic.messages.parse({
-      model: "claude-opus-4-7",
+      // Sonnet: article vocabulary extraction — no vision, large context but
+      // well-structured. Opus was overkill.
+      model: "claude-sonnet-4-6",
       max_tokens: 16000,
       system: SYSTEM_PROMPT,
       messages: [

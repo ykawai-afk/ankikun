@@ -67,7 +67,8 @@ export async function POST(req: NextRequest) {
 
     try {
       const result = await anthropic.messages.parse({
-        model: "claude-opus-4-7",
+        // Sonnet: etymology is straightforward lookup/synthesis, no vision needed.
+        model: "claude-sonnet-4-6",
         max_tokens: 8000,
         system: PROMPT,
         messages: [

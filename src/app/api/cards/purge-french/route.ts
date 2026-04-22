@@ -61,7 +61,8 @@ export async function POST(req: NextRequest) {
       .join("\n");
     try {
       const result = await anthropic.messages.parse({
-        model: "claude-opus-4-7",
+        // Haiku: binary "is this word French vs English" classification.
+        model: "claude-haiku-4-5",
         max_tokens: 1500,
         system: PROMPT,
         messages: [
