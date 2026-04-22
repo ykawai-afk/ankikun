@@ -44,6 +44,31 @@ const ExtractionSchema = z.object({
   words: z.array(WordSchema),
 });
 
+const SingleWordSchema = z.object({
+  word: WordSchema,
+});
+
+const SINGLE_WORD_PROMPT = `あなたは日本人英語学習者向け単語カード作成アシスタント。
+ユーザーがWeb上で明示的に選択した1語(または短いフレーズ)について、カードを1枚だけ作成します。
+
+ルール:
+- 選択された語を lemma(原形) に戻して word に格納 (例: "mitigating" → "mitigate", "tools" → "tool")
+- 選択が複数語フレーズの場合はそのまま保持 (例: "cut corners")
+- 固有名詞(人名・地名・ブランド等)なら word に "__SKIP__" とだけ返して他は空でOK (呼び出し側が無視する)
+- その他のフィールドは通常のカードと同じ書式。例文は「日常で実際にあり得るシーン」限定。
+
+各フィールドの指針:
+- word: 必ず lemma
+- reading: IPA (例: "/rʌn/")。不明なら null
+- part_of_speech: "noun"/"verb"/"adjective"/"adverb"/"phrase"
+- definition_ja: 日本語で簡潔に
+- definition_en: 英英定義(短く)
+- example_en: その単語を使った日常シーンの自然な例文1つ。文学調/哲学調/論文調は禁止
+- example_ja: example_enの自然な日本語訳
+- etymology: 語源 (不明なら null)
+- related_words: word family を2-4個
+- extra_examples: 文脈別に2-3個。register を多様化 (formal=会社員メール, conversational=カジュアル, idiom=実用的慣用句)`;
+
 const SYSTEM_PROMPT = `あなたは日本人英語学習者向け単語カード作成アシスタント。
 スクリーンショットから「学習価値の高い英単語」を抽出し、カード化します。
 
@@ -237,10 +262,16 @@ export async function processTextIngest({
   userId: string;
 }): Promise<IngestResult> {
   const trimmed = text.trim();
-  if (trimmed.length < 20) {
-    throw new Error(`テキストが短すぎます (${trimmed.length}文字)`);
+  if (trimmed.length < 2) {
+    throw new Error("テキストが空です");
   }
   const source = sourceUrl ?? "(pasted text)";
+
+  // Single-word / short-phrase path: the user highlighted a specific word
+  // they want to learn. Bypass the article-extraction prompt and create
+  // exactly one card via a dedicated schema + prompt.
+  const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
+  const isSingleWord = wordCount <= 3 && trimmed.length <= 40;
 
   const supabase = createAdminClient();
   const { data: ingestion, error: ingError } = await supabase
@@ -258,6 +289,75 @@ export async function processTextIngest({
 
   try {
     const anthropic = getAnthropicClient();
+    const sourceContext = title
+      ? sourceUrl
+        ? `${title} — ${sourceUrl}`
+        : title
+      : sourceUrl ?? null;
+
+    if (isSingleWord) {
+      const payload = `ユーザーがページ上で選択した語: "${trimmed}"
+${title ? `ページ: ${title}\n` : ""}${sourceUrl ? `URL: ${sourceUrl}\n` : ""}
+この語について単語カードを1枚作成してください。`;
+
+      const result = await anthropic.messages.parse({
+        model: "claude-opus-4-7",
+        max_tokens: 4000,
+        system: SINGLE_WORD_PROMPT,
+        messages: [{ role: "user", content: payload }],
+        output_config: { format: zodOutputFormat(SingleWordSchema) },
+      });
+      const parsed = result.parsed_output;
+      if (!parsed)
+        throw new Error(
+          `structured output missing (stop_reason: ${result.stop_reason})`
+        );
+      const w = parsed.word;
+      const skipped = w.word === "__SKIP__";
+      const inserts = skipped
+        ? []
+        : [
+            {
+              user_id: userId,
+              word: w.word,
+              reading: w.reading,
+              part_of_speech: w.part_of_speech,
+              definition_ja: w.definition_ja,
+              definition_en: w.definition_en,
+              example_en: w.example_en,
+              example_ja: w.example_ja,
+              etymology: w.etymology,
+              related_words:
+                w.related_words.length > 0 ? w.related_words : null,
+              extra_examples:
+                w.extra_examples.length > 0 ? w.extra_examples : null,
+              source_image_path: null,
+              source_context: sourceContext,
+            },
+          ];
+      if (inserts.length > 0) {
+        const { error: cardsError } = await supabase
+          .from("cards")
+          .insert(inserts);
+        if (cardsError)
+          throw new Error(`cards insert failed: ${cardsError.message}`);
+      }
+      await supabase
+        .from("ingestions")
+        .update({
+          status: "processed",
+          raw_response: parsed as unknown as Record<string, unknown>,
+          cards_created: inserts.length,
+          processed_at: new Date().toISOString(),
+        })
+        .eq("id", ingestion.id);
+      return {
+        ingestion_id: ingestion.id,
+        cards_created: inserts.length,
+        words: inserts.map((c) => c.word),
+      };
+    }
+
     const payload = `以下のテキストから学習価値の高い英単語を抽出してカード化してください。
 
 ${sourceUrl ? `出典URL: ${sourceUrl}\n` : ""}${title ? `タイトル: ${title}\n` : ""}--- 本文 ---
@@ -276,12 +376,6 @@ ${trimmed.slice(0, 18000)}`;
       throw new Error(
         `structured output missing (stop_reason: ${result.stop_reason})`
       );
-
-    const sourceContext = title
-      ? sourceUrl
-        ? `${title} — ${sourceUrl}`
-        : title
-      : sourceUrl ?? null;
 
     const cardsToInsert = parsed.words.map((w) => ({
       user_id: userId,
