@@ -11,7 +11,9 @@ import {
   GraduationCap,
   Keyboard,
   Loader2,
+  NotebookPen,
   Pause,
+  Pencil,
   Play,
   RefreshCw,
   Shuffle,
@@ -29,6 +31,7 @@ import type {
 } from "@/lib/types";
 import { haptic } from "@/lib/haptics";
 import { isTypingMatch } from "@/lib/typing";
+import { updateUserNote } from "../cards/card-actions";
 import { grade } from "./actions";
 
 const REVERSE_TYPING_MIN_INTERVAL = 21;
@@ -677,6 +680,17 @@ export function ReviewSession({
                     </div>
                   </div>
                 )}
+                <UserNoteSection
+                  cardId={card.id}
+                  note={card.user_note}
+                  onChange={(v) =>
+                    setQueue((q) =>
+                      q.map((c) =>
+                        c.id === card.id ? { ...c, user_note: v } : c
+                      )
+                    )
+                  }
+                />
                 {card.related_words && card.related_words.length > 0 && (
                   <RelatedWordsPanel items={card.related_words} />
                 )}
@@ -1088,6 +1102,138 @@ function Kbd({ children }: { children: React.ReactNode }) {
     <kbd className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded border border-border bg-surface-2 text-[9px] font-mono">
       {children}
     </kbd>
+  );
+}
+
+function UserNoteSection({
+  cardId,
+  note,
+  onChange,
+}: {
+  cardId: string;
+  note: string | null;
+  onChange: (v: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(note ?? "");
+  const [saving, setSaving] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setDraft(note ?? "");
+    setEditing(false);
+  }, [cardId, note]);
+
+  useEffect(() => {
+    if (!editing) return;
+    const t = setTimeout(() => textareaRef.current?.focus(), 40);
+    return () => clearTimeout(t);
+  }, [editing]);
+
+  const save = async () => {
+    const trimmed = draft.trim();
+    if ((trimmed || null) === (note ?? null)) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      const r = await updateUserNote(cardId, trimmed);
+      if (r.ok) {
+        onChange(trimmed || null);
+        setEditing(false);
+      }
+    } catch (e) {
+      console.error("updateUserNote failed", e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancel = () => {
+    setDraft(note ?? "");
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <div className="rounded-xl border-2 border-amber-500/40 bg-amber-500/5 p-2.5 flex flex-col gap-1.5">
+        <div className="flex items-center gap-1.5">
+          <NotebookPen
+            size={11}
+            className="text-amber-600 dark:text-amber-400 shrink-0"
+          />
+          <span className="text-[9px] uppercase tracking-widest text-amber-700 dark:text-amber-400 font-semibold">
+            覚え方メモ
+          </span>
+        </div>
+        <textarea
+          ref={textareaRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={3}
+          placeholder="語呂合わせ、個人的エピソード、使った場面、なんでも"
+          className="w-full p-2 rounded-lg bg-background text-[12px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-amber-500/30 resize-none"
+        />
+        <div className="flex gap-1.5 justify-end">
+          <button
+            type="button"
+            onClick={cancel}
+            disabled={saving}
+            className="h-7 px-2.5 rounded-lg text-[10px] font-medium text-muted hover:bg-surface-2 transition disabled:opacity-50"
+          >
+            キャンセル
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="h-7 px-2.5 rounded-lg text-[10px] font-semibold bg-amber-500 text-white transition active:scale-95 disabled:opacity-50 inline-flex items-center gap-1"
+          >
+            {saving && <Loader2 size={10} className="animate-spin" />}
+            保存
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!note) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="rounded-xl border border-dashed border-amber-500/40 px-3 py-2 flex items-center justify-center gap-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-400 active:scale-[0.99] transition hover:bg-amber-500/5"
+      >
+        <NotebookPen size={11} />
+        覚え方メモを書く
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border-2 border-amber-500/30 bg-amber-500/5 p-2.5 flex gap-2 relative group">
+      <NotebookPen
+        size={11}
+        className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5"
+      />
+      <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+        <span className="text-[8px] uppercase tracking-widest text-amber-700 dark:text-amber-400 font-semibold">
+          覚え方メモ
+        </span>
+        <p className="text-[12px] leading-relaxed whitespace-pre-wrap">
+          {note}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        aria-label="編集"
+        className="w-6 h-6 rounded-full flex items-center justify-center text-amber-700/70 dark:text-amber-400/70 hover:bg-amber-500/10 active:scale-95 transition shrink-0"
+      >
+        <Pencil size={10} />
+      </button>
+    </div>
   );
 }
 

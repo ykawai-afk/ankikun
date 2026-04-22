@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BookOpen, Calendar, GraduationCap, Repeat } from "lucide-react";
+import { ArrowLeft, BookOpen, Calendar, GraduationCap, NotebookPen, Repeat } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
 import { PageShell } from "@/components/page-shell";
@@ -234,6 +234,21 @@ export default async function CardDetailPage({
               />
               <p className="text-[12px] leading-relaxed text-muted">
                 {card.etymology}
+              </p>
+            </div>
+          </section>
+        )}
+
+        {card.user_note && (
+          <section className="flex flex-col gap-1.5">
+            <Label>覚え方メモ</Label>
+            <div className="rounded-xl border-2 border-amber-500/30 bg-amber-500/5 p-3 flex gap-2">
+              <NotebookPen
+                size={13}
+                className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5"
+              />
+              <p className="text-[12px] leading-relaxed whitespace-pre-wrap">
+                {card.user_note}
               </p>
             </div>
           </section>

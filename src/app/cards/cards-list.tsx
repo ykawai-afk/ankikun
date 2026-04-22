@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
-import { Clock, Search, Sparkles } from "lucide-react";
+import { Clock, NotebookPen, Search, Sparkles } from "lucide-react";
 import type { Card } from "@/lib/types";
 
 type SortMode = "due" | "new";
@@ -20,6 +20,7 @@ export type CardRow = Pick<
   | "created_at"
   | "source_image_path"
   | "etymology"
+  | "user_note"
   | "tags"
 > & { image_url: string | null };
 
@@ -211,13 +212,22 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
                     </span>
                   )}
                 </div>
-                <span
-                  className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full shrink-0 font-medium ${
-                    STATUS_STYLE[c.status] ?? ""
-                  }`}
-                >
-                  {STATUS_LABEL[c.status] ?? c.status}
-                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {c.user_note && (
+                    <NotebookPen
+                      size={11}
+                      className="text-amber-600 dark:text-amber-400"
+                      aria-label="メモあり"
+                    />
+                  )}
+                  <span
+                    className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full font-medium ${
+                      STATUS_STYLE[c.status] ?? ""
+                    }`}
+                  >
+                    {STATUS_LABEL[c.status] ?? c.status}
+                  </span>
+                </div>
               </div>
               <div className="text-xs text-foreground/80 leading-relaxed">
                 {c.definition_ja}

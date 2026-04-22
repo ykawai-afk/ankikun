@@ -13,7 +13,7 @@ export default async function CardsPage() {
   const { data: cards } = await supabase
     .from("cards")
     .select(
-      "id, word, reading, part_of_speech, definition_ja, status, next_review_at, created_at, source_image_path, etymology, tags"
+      "id, word, reading, part_of_speech, definition_ja, status, next_review_at, created_at, source_image_path, etymology, user_note, tags"
     )
     .eq("user_id", userId)
     .order("next_review_at", { ascending: true });
@@ -30,6 +30,7 @@ export default async function CardsPage() {
     | "created_at"
     | "source_image_path"
     | "etymology"
+    | "user_note"
     | "tags"
   >[]).map((r) => ({ ...r, image_url: null }));
 

@@ -14,6 +14,7 @@ export type CardEditInput = {
   example_en: string | null;
   example_ja: string | null;
   etymology: string | null;
+  user_note: string | null;
   tags: string[] | null;
 };
 
@@ -45,6 +46,7 @@ export async function updateCard(
       example_en: input.example_en?.trim() || null,
       example_ja: input.example_ja?.trim() || null,
       etymology: input.etymology?.trim() || null,
+      user_note: input.user_note?.trim() || null,
       tags: input.tags && input.tags.length > 0 ? input.tags : null,
     })
     .eq("id", cardId)
@@ -53,6 +55,24 @@ export async function updateCard(
 
   revalidatePath("/cards");
   revalidatePath("/");
+  return { ok: true };
+}
+
+export async function updateUserNote(
+  cardId: string,
+  note: string
+): Promise<ActionResult> {
+  const trimmed = note.trim();
+  const supabase = createAdminClient();
+  const userId = getUserId();
+  const { error } = await supabase
+    .from("cards")
+    .update({ user_note: trimmed || null })
+    .eq("id", cardId)
+    .eq("user_id", userId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/cards");
+  revalidatePath(`/cards/${cardId}`);
   return { ok: true };
 }
 

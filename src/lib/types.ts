@@ -42,6 +42,7 @@ export type Card = {
   source_image_path: string | null;
   source_context: string | null;
   etymology: string | null;
+  user_note: string | null;
   image_url: string | null;
   related_words: RelatedWord[] | null;
   extra_examples: ExtraExample[] | null;

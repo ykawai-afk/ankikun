@@ -44,6 +44,7 @@ export function CardDetailActions({ card }: { card: Card }) {
     created_at: card.created_at,
     source_image_path: card.source_image_path,
     etymology: card.etymology,
+    user_note: card.user_note,
     tags: card.tags,
     image_url: null,
   };

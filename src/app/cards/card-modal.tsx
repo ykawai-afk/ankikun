@@ -35,6 +35,7 @@ export function CardModal({ card, onClose }: Props) {
         example_en: null,
         example_ja: null,
         etymology: card.etymology ?? null,
+        user_note: card.user_note ?? null,
         tags: card.tags ?? null,
       });
       setError(null);
@@ -171,6 +172,18 @@ export function CardModal({ card, onClose }: Props) {
               }
               rows={2}
               placeholder="Latin 'elusus'..."
+              className="w-full p-2.5 rounded-lg bg-surface-2 text-xs focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"
+            />
+          </Field>
+
+          <Field label="覚え方メモ">
+            <textarea
+              value={draft.user_note ?? ""}
+              onChange={(e) =>
+                setDraft({ ...draft, user_note: e.target.value })
+              }
+              rows={3}
+              placeholder="語呂合わせ、個人的エピソード、なんでも"
               className="w-full p-2.5 rounded-lg bg-surface-2 text-xs focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"
             />
           </Field>
