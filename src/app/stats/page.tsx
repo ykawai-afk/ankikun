@@ -400,31 +400,50 @@ export default async function StatsPage() {
           title="推定総語彙"
           subtitle={`CEFR判定済 ${cefrCoveredPct}%`}
         >
-          {/* Current level — centered hero */}
+          {/* Current level — full-bleed hero with overlaid text */}
           {currentLevel && (
-            <div className="rounded-2xl bg-gradient-to-br from-accent-soft to-background border border-accent/20 p-5 flex flex-col items-center gap-2 text-center">
-              <div className="w-32 h-32 flex items-center justify-center rounded-2xl bg-background/60 border border-border/40">
-                <LevelAvatar
-                  image={currentLevel.image}
-                  emoji={currentLevel.emoji}
-                  size={120}
-                  alt={currentLevel.label}
-                />
-              </div>
-              <span className="text-[9px] uppercase tracking-widest text-accent font-semibold mt-1">
-                Current Level
-              </span>
-              <span className="text-lg font-semibold leading-tight px-2">
-                {currentLevel.label}
-              </span>
-              <span className="text-[11px] text-muted leading-snug px-2">
-                {currentLevel.sub}
-              </span>
-              <div className="flex items-baseline gap-1 mt-1">
-                <span className="text-4xl font-semibold tabular-nums leading-none bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent">
-                  {vocabEstimate.toLocaleString()}
+            <div className="relative rounded-2xl overflow-hidden border border-accent/20 aspect-square bg-surface-2">
+              <LevelAvatar
+                image={currentLevel.image}
+                emoji={currentLevel.emoji}
+                size={512}
+                alt={currentLevel.label}
+                className="absolute inset-0 w-full h-full object-cover"
+                fallbackClassName="absolute inset-0 w-full h-full flex items-center justify-center text-[140px]"
+              />
+              {/* Top pill */}
+              <div className="absolute top-3 left-3 inline-flex items-center rounded-full bg-black/50 backdrop-blur-md px-2.5 py-1">
+                <span className="text-[9px] uppercase tracking-widest text-white/90 font-semibold">
+                  Current Level
                 </span>
-                <span className="text-xs text-muted">語 受動</span>
+              </div>
+              {/* Bottom gradient + text */}
+              <div className="absolute inset-x-0 bottom-0 pt-16 pb-4 px-4 bg-gradient-to-t from-black/85 via-black/55 to-transparent">
+                <div className="flex items-end justify-between gap-3 text-white">
+                  <div className="flex flex-col min-w-0">
+                    <span
+                      className="text-xl font-semibold leading-tight"
+                      style={{ textShadow: "0 2px 8px rgba(0,0,0,.45)" }}
+                    >
+                      {currentLevel.label}
+                    </span>
+                    <span
+                      className="text-[11px] text-white/85 leading-snug"
+                      style={{ textShadow: "0 1px 4px rgba(0,0,0,.45)" }}
+                    >
+                      {currentLevel.sub}
+                    </span>
+                  </div>
+                  <div
+                    className="flex items-baseline gap-1 shrink-0"
+                    style={{ textShadow: "0 2px 10px rgba(0,0,0,.5)" }}
+                  >
+                    <span className="text-3xl font-semibold tabular-nums leading-none">
+                      {vocabEstimate.toLocaleString()}
+                    </span>
+                    <span className="text-[10px] text-white/80">語</span>
+                  </div>
+                </div>
               </div>
             </div>
           )}

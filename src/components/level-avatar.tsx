@@ -3,21 +3,33 @@
 import { useState } from "react";
 
 // Renders the level's Midjourney image if it loads, falls back to emoji
-// when the file is missing (404) or not yet uploaded. Image is always
-// rendered as a centered square; callers control the outer frame size.
+// when the file is missing (404). The default `size` path gives a square
+// thumbnail; pass `className` (and optional `fallbackClassName`) to render
+// the image as a full-bleed cover inside a positioned parent.
 export function LevelAvatar({
   image,
   emoji,
   size = 56,
   alt,
+  className,
+  fallbackClassName,
 }: {
   image?: string;
   emoji: string;
   size?: number;
   alt: string;
+  className?: string;
+  fallbackClassName?: string;
 }) {
   const [failed, setFailed] = useState(false);
   if (!image || failed) {
+    if (fallbackClassName) {
+      return (
+        <span aria-hidden className={fallbackClassName}>
+          {emoji}
+        </span>
+      );
+    }
     return (
       <span
         aria-hidden
@@ -26,6 +38,17 @@ export function LevelAvatar({
       >
         {emoji}
       </span>
+    );
+  }
+  if (className) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={image}
+        alt={alt}
+        onError={() => setFailed(true)}
+        className={className}
+      />
     );
   }
   return (
