@@ -23,6 +23,8 @@ create table if not exists public.cards (
   etymology text,
   user_note text,
   audio_url text,
+  difficulty text
+    check (difficulty in ('A1','A2','B1','B2','C1','C2')),
 
   -- SM-2 state
   ease_factor real not null default 2.5,

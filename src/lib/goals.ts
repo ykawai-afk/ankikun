@@ -5,6 +5,28 @@ export const WEEKLY_NEW_TARGET = 150;
 export const QUARTERLY_NEW_TARGET = 1500;
 export const YEARLY_NEW_TARGET = 6000;
 
+// Vocabulary size estimation. Baseline reflects the user's pre-Ankikun
+// education (鉄壁完遂 → 減衰後) and per-card weights credit Ankikun exposure
+// differently depending on how rare the word is.
+export const VOCAB_BASELINE = 7000;
+export const VOCAB_CARD_WEIGHT: Record<string, number> = {
+  A1: 0.5,
+  A2: 0.7,
+  B1: 1.0,
+  B2: 1.2,
+  C1: 1.5,
+  C2: 1.8,
+  unknown: 1.0,
+};
+
+// Milestones shown next to the estimated total.
+export const VOCAB_MILESTONES: { label: string; value: number }[] = [
+  { label: "TOEIC 900", value: 8_000 },
+  { label: "英検1級", value: 10_000 },
+  { label: "研究者", value: 15_000 },
+  { label: "Native教養層", value: 20_000 },
+];
+
 export const TZ = "Asia/Tokyo";
 
 export function jstStartOfDay(now: Date = new Date()): Date {

@@ -1,5 +1,7 @@
 export type CardStatus = "new" | "learning" | "review" | "suspended";
 
+export type CEFRLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
+
 export type RelatedWord = {
   word: string;
   part_of_speech: string | null;
@@ -44,6 +46,7 @@ export type Card = {
   etymology: string | null;
   user_note: string | null;
   audio_url: string | null;
+  difficulty: CEFRLevel | null;
   image_url: string | null;
   related_words: RelatedWord[] | null;
   extra_examples: ExtraExample[] | null;

@@ -7,6 +7,9 @@ import {
   WEEKLY_NEW_TARGET,
   QUARTERLY_NEW_TARGET,
   YEARLY_NEW_TARGET,
+  VOCAB_BASELINE,
+  VOCAB_CARD_WEIGHT,
+  VOCAB_MILESTONES,
   jstStartOfDay,
   jstStartOfWeek,
   jstStartOfQuarter,
@@ -98,7 +101,7 @@ export default async function StatsPage() {
       .gte("interval_days", MASTERED_THRESHOLD_DAYS),
     supabase
       .from("cards")
-      .select("interval_days, ease_factor")
+      .select("interval_days, ease_factor, difficulty")
       .eq("user_id", userId)
       .neq("status", "suspended"),
     supabase
@@ -219,7 +222,40 @@ export default async function StatsPage() {
   const active = (activeRes.data ?? []) as {
     interval_days: number;
     ease_factor: number;
+    difficulty: string | null;
   }[];
+
+  // === CEFR distribution + vocabulary estimate ===
+  const cefrOrder = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
+  type CEFRKey = (typeof cefrOrder)[number];
+  const cefrCounts: Record<CEFRKey | "unknown", number> = {
+    A1: 0,
+    A2: 0,
+    B1: 0,
+    B2: 0,
+    C1: 0,
+    C2: 0,
+    unknown: 0,
+  };
+  for (const c of active) {
+    const key = (
+      c.difficulty && cefrOrder.includes(c.difficulty as CEFRKey)
+        ? c.difficulty
+        : "unknown"
+    ) as CEFRKey | "unknown";
+    cefrCounts[key]++;
+  }
+  const vocabCardContribution = Object.entries(cefrCounts).reduce(
+    (sum, [level, count]) =>
+      sum + count * (VOCAB_CARD_WEIGHT[level] ?? 1),
+    0
+  );
+  const vocabEstimate = Math.round(VOCAB_BASELINE + vocabCardContribution);
+  const cefrMax = Math.max(1, ...Object.values(cefrCounts));
+  const cefrCoveredPct =
+    active.length > 0
+      ? Math.round(((active.length - cefrCounts.unknown) / active.length) * 100)
+      : 0;
   const intervalBins = [
     { label: "0日 (未定着)", min: 0, max: 0, tone: "bg-muted" },
     { label: "1-6日", min: 1, max: 6, tone: "bg-flame/70" },
@@ -354,6 +390,86 @@ export default async function StatsPage() {
   return (
     <PageShell title="進捗">
       <div className="py-4 flex flex-col gap-5 pb-8">
+        {/* Vocabulary size estimate */}
+        <Section
+          title="推定総語彙"
+          subtitle={`CEFR判定済 ${cefrCoveredPct}%`}
+        >
+          <div className="flex items-end gap-2">
+            <span className="text-4xl font-semibold tabular-nums bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent leading-none">
+              {vocabEstimate.toLocaleString()}
+            </span>
+            <span className="text-xs text-muted pb-1">語 (受動)</span>
+          </div>
+          <p className="text-[10px] text-muted leading-relaxed">
+            ベース {VOCAB_BASELINE.toLocaleString()}語 (鉄壁完遂後の減衰想定) + Ankikun加算 {Math.round(vocabCardContribution).toLocaleString()}語
+          </p>
+
+          {/* CEFR histogram */}
+          <div className="flex flex-col gap-1 mt-2">
+            {cefrOrder.map((lv) => {
+              const n = cefrCounts[lv];
+              const pct = (n / cefrMax) * 100;
+              const tone =
+                lv === "A1" || lv === "A2"
+                  ? "bg-muted"
+                  : lv === "B1"
+                    ? "bg-flame/60"
+                    : lv === "B2"
+                      ? "bg-flame/80"
+                      : lv === "C1"
+                        ? "bg-accent"
+                        : "bg-success";
+              return (
+                <div
+                  key={lv}
+                  className="flex items-center gap-2 text-[11px]"
+                >
+                  <span className="w-7 shrink-0 text-muted font-mono font-semibold">
+                    {lv}
+                  </span>
+                  <div className="flex-1 h-3 rounded-full bg-border/40 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${tone} transition-[width] duration-500`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="w-10 text-right tabular-nums font-medium">
+                    {n}
+                  </span>
+                </div>
+              );
+            })}
+            {cefrCounts.unknown > 0 && (
+              <div className="flex items-center gap-2 text-[10px] text-muted mt-1">
+                <span>未判定 {cefrCounts.unknown}枚</span>
+              </div>
+            )}
+          </div>
+
+          {/* Milestones */}
+          <div className="flex flex-col gap-0.5 mt-2 pt-2 border-t border-border/40">
+            {VOCAB_MILESTONES.map((m) => {
+              const reached = vocabEstimate >= m.value;
+              return (
+                <div
+                  key={m.label}
+                  className="flex items-center justify-between text-[10px]"
+                >
+                  <span className={reached ? "text-success" : "text-muted"}>
+                    {reached ? "✓" : "○"} {m.label}
+                  </span>
+                  <span
+                    className={`tabular-nums ${reached ? "text-success" : "text-muted"}`}
+                  >
+                    {m.value.toLocaleString()}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+
         {/* Goals: short / mid / long term targets */}
         <Section
           title="目標"
