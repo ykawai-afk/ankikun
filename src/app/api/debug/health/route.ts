@@ -54,6 +54,7 @@ type Report = {
     estimate: number;
     current_level: string | null;
     cefr: Record<string, number>;
+    cefr_mastered: Record<string, number>;
   };
   queue: {
     due_now: number;
@@ -189,7 +190,9 @@ export async function GET(req: NextRequest) {
   const audioCoveragePct =
     audioTotal > 0 ? Math.round((audioWithCount / audioTotal) * 100) : 0;
 
-  // CEFR counts + vocab estimate
+  // CEFR counts — total (for distribution) and mastered-only (drives the
+  // vocab estimate so the number reflects retained knowledge, not exposure).
+  const MASTERED_DAYS = 21;
   const cefrLevels = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
   const cefrResults = await Promise.all(
     cefrLevels.map((lv) =>
@@ -201,17 +204,41 @@ export async function GET(req: NextRequest) {
         .eq("difficulty", lv)
     )
   );
+  const cefrMasteredResults = await Promise.all(
+    cefrLevels.map((lv) =>
+      db
+        .from("cards")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .neq("status", "suspended")
+        .gte("interval_days", MASTERED_DAYS)
+        .eq("difficulty", lv)
+    )
+  );
   const cefrNullRes = await db
     .from("cards")
     .select("*", { count: "exact", head: true })
     .eq("user_id", userId)
     .neq("status", "suspended")
     .is("difficulty", null);
-  const cefrCounts: Record<string, number> = { unknown: cefrNullRes.count ?? 0 };
+  const cefrNullMasteredRes = await db
+    .from("cards")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .neq("status", "suspended")
+    .gte("interval_days", MASTERED_DAYS)
+    .is("difficulty", null);
+  const cefrCounts: Record<string, number> = {
+    unknown: cefrNullRes.count ?? 0,
+  };
+  const cefrMastered: Record<string, number> = {
+    unknown: cefrNullMasteredRes.count ?? 0,
+  };
   cefrLevels.forEach((lv, i) => {
     cefrCounts[lv] = cefrResults[i].count ?? 0;
+    cefrMastered[lv] = cefrMasteredResults[i].count ?? 0;
   });
-  const vocabContribution = Object.entries(cefrCounts).reduce(
+  const vocabContribution = Object.entries(cefrMastered).reduce(
     (sum, [lv, count]) => sum + count * (VOCAB_CARD_WEIGHT[lv] ?? 0),
     0
   );
@@ -437,6 +464,7 @@ export async function GET(req: NextRequest) {
         ? `${currentLevel.emoji} ${currentLevel.label} (${currentLevel.sub})`
         : null,
       cefr: cefrCounts,
+      cefr_mastered: cefrMastered,
     },
     queue: {
       due_now: dueNow.count ?? 0,
@@ -503,13 +531,17 @@ function renderText(r: Report): string {
   p(`  remaining slot : ${r.quota.new_slots_left}`);
   p("");
   p("=== Vocabulary estimate ===");
-  p(`  current level  : ${r.vocab.current_level ?? "—"}`);
-  p(`  estimate       : ${r.vocab.estimate.toLocaleString()} 語`);
-  p(`  baseline       : ${r.vocab.baseline.toLocaleString()}`);
-  p(`  + Ankikun      : ${r.vocab.card_contribution.toLocaleString()}`);
-  p(`  CEFR distribution:`);
+  p(`  current level    : ${r.vocab.current_level ?? "—"}`);
+  p(`  estimate         : ${r.vocab.estimate.toLocaleString()} 語`);
+  p(`  baseline         : ${r.vocab.baseline.toLocaleString()}`);
+  p(`  + Ankikun (≥21d) : ${r.vocab.card_contribution.toLocaleString()}`);
+  p(`  CEFR distribution (total · ≥21d):`);
   for (const [lv, n] of Object.entries(r.vocab.cefr)) {
-    p(`    ${lv.padEnd(10)}: ${n}`);
+    const m =
+      (r.vocab as { cefr_mastered?: Record<string, number> }).cefr_mastered?.[
+        lv
+      ] ?? 0;
+    p(`    ${lv.padEnd(10)}: ${String(n).padStart(4)} · ≥21d ${m}`);
   }
   p("");
   p("=== Audio coverage ===");

@@ -231,13 +231,13 @@ export default async function StatsPage() {
   const cefrOrder = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
   type CEFRKey = (typeof cefrOrder)[number];
   const cefrCounts: Record<CEFRKey | "unknown", number> = {
-    A1: 0,
-    A2: 0,
-    B1: 0,
-    B2: 0,
-    C1: 0,
-    C2: 0,
-    unknown: 0,
+    A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0, unknown: 0,
+  };
+  // "Mastered" bucket — only cards that have made it past the 21-day
+  // interval count toward the vocab tally, so the number reflects what
+  // actually stuck rather than everything the user has ever seen.
+  const masteredCefrCounts: Record<CEFRKey | "unknown", number> = {
+    A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0, unknown: 0,
   };
   for (const c of active) {
     const key = (
@@ -246,10 +246,17 @@ export default async function StatsPage() {
         : "unknown"
     ) as CEFRKey | "unknown";
     cefrCounts[key]++;
+    if (c.interval_days >= MASTERED_THRESHOLD_DAYS) {
+      masteredCefrCounts[key]++;
+    }
   }
-  const vocabCardContribution = Object.entries(cefrCounts).reduce(
+  const vocabCardContribution = Object.entries(masteredCefrCounts).reduce(
     (sum, [level, count]) =>
       sum + count * (VOCAB_CARD_WEIGHT[level] ?? 0),
+    0
+  );
+  const masteredCount = Object.values(masteredCefrCounts).reduce(
+    (a, b) => a + b,
     0
   );
   const vocabEstimate = Math.round(VOCAB_BASELINE + vocabCardContribution);
@@ -398,7 +405,7 @@ export default async function StatsPage() {
         {/* Vocabulary size estimate */}
         <Section
           title="推定総語彙"
-          subtitle={`CEFR判定済 ${cefrCoveredPct}%`}
+          subtitle={`習得済 ${masteredCount} / ${active.length}枚 · CEFR判定 ${cefrCoveredPct}%`}
         >
           {/* Current level — full-bleed hero with overlaid text */}
           {currentLevel && (
