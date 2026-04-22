@@ -7,6 +7,19 @@ export const maxDuration = 60;
 
 const DUE_THRESHOLD = 5;
 const THROTTLE_HOURS = 3;
+const QUIET_START_HOUR = 0;
+const QUIET_END_HOUR = 6;
+const QUIET_TZ = "Asia/Tokyo";
+
+function isQuietHours(now: Date): boolean {
+  const hourStr = new Intl.DateTimeFormat("en-GB", {
+    timeZone: QUIET_TZ,
+    hour: "2-digit",
+    hour12: false,
+  }).format(now);
+  const h = Number(hourStr) % 24;
+  return h >= QUIET_START_HOUR && h < QUIET_END_HOUR;
+}
 
 function configureVapid() {
   const subject = process.env.VAPID_SUBJECT;
@@ -31,9 +44,13 @@ async function handle(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  const now = new Date();
+  if (isQuietHours(now)) {
+    return NextResponse.json({ sent: 0, skipped: "quiet-hours" });
+  }
+
   configureVapid();
   const supabase = createAdminClient();
-  const now = new Date();
   const throttleCutoff = new Date(
     now.getTime() - THROTTLE_HOURS * 3600_000
   ).toISOString();
