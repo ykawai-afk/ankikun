@@ -65,14 +65,25 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // One bulk update keyed by id list — 499 sequential updates was hitting
+  // the 60s serverless ceiling. PostgREST runs this as a single statement.
+  const ids = rows.map((r) => r.id);
+  const CHUNK = 200;
   let updated = 0;
-  for (const r of rows) {
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const slice = ids.slice(i, i + CHUNK);
     const { error: upd } = await supabase
       .from("cards")
       .update({ tags: [tag] })
-      .eq("id", r.id)
+      .in("id", slice)
       .eq("user_id", userId);
-    if (!upd) updated++;
+    if (upd) {
+      return NextResponse.json(
+        { error: upd.message, matched: rows.length, updated },
+        { status: 500 }
+      );
+    }
+    updated += slice.length;
   }
 
   return NextResponse.json({ matched: rows.length, updated });
