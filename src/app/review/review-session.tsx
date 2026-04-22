@@ -1173,7 +1173,7 @@ function UserNoteSection({
           onChange={(e) => setDraft(e.target.value)}
           rows={3}
           placeholder="語呂合わせ、個人的エピソード、使った場面、なんでも"
-          className="w-full p-2 rounded-lg bg-background text-[12px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-amber-500/30 resize-none"
+          className="w-full p-2 rounded-lg bg-background text-[16px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-amber-500/30 resize-none"
         />
         <div className="flex gap-1.5 justify-end">
           <button
