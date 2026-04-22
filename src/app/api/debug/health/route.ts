@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
+import { DAILY_NEW_TARGET } from "@/lib/goals";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -148,7 +149,6 @@ export async function GET(req: NextRequest) {
     ]);
   const todayTotal = todayRes.count ?? 0;
   const todayNewIntros = todayNewRes.count ?? 0;
-  const DAILY_NEW_TARGET = 50;
   const newSlotsLeft = Math.max(0, DAILY_NEW_TARGET - todayNewIntros);
 
   // Audio coverage

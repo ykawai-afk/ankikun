@@ -2,10 +2,19 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
 import { PageShell } from "@/components/page-shell";
 import { computeStreak } from "@/lib/streak";
+import {
+  DAILY_NEW_TARGET,
+  WEEKLY_NEW_TARGET,
+  QUARTERLY_NEW_TARGET,
+  YEARLY_NEW_TARGET,
+  jstStartOfDay,
+  jstStartOfWeek,
+  jstStartOfQuarter,
+  jstStartOfYear,
+} from "@/lib/goals";
 
 export const dynamic = "force-dynamic";
 
-const DAILY_NEW_TARGET = 50;
 const MASTERED_THRESHOLD_DAYS = 21;
 const MOMENTUM_DAYS = 30;
 const RETENTION_WEEKS = 8;
@@ -60,6 +69,10 @@ export default async function StatsPage() {
   ).toISOString();
 
   const forecastUntil = shiftDays(now, FORECAST_DAYS + 1).toISOString();
+  const goalDayStart = jstStartOfDay(now);
+  const goalWeekStart = jstStartOfWeek(now);
+  const goalQuarterStart = jstStartOfQuarter(now);
+  const goalYearStart = jstStartOfYear(now);
 
   const [
     totalRes,
@@ -69,6 +82,10 @@ export default async function StatsPage() {
     recentLogs,
     streakLogs,
     forecastRes,
+    dayIntrosRes,
+    weekIntrosRes,
+    quarterIntrosRes,
+    yearIntrosRes,
   ] = await Promise.all([
     supabase
       .from("cards")
@@ -105,12 +122,63 @@ export default async function StatsPage() {
       .eq("user_id", userId)
       .neq("status", "suspended")
       .lte("next_review_at", forecastUntil),
+    // New-intro counters keyed on (prev_interval=0 AND prev_ease=2.5) — the
+    // "first-ever grading on a fresh card" fingerprint — across four windows.
+    supabase
+      .from("review_logs")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("prev_interval", 0)
+      .eq("prev_ease", 2.5)
+      .gte("reviewed_at", goalDayStart.toISOString()),
+    supabase
+      .from("review_logs")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("prev_interval", 0)
+      .eq("prev_ease", 2.5)
+      .gte("reviewed_at", goalWeekStart.toISOString()),
+    supabase
+      .from("review_logs")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("prev_interval", 0)
+      .eq("prev_ease", 2.5)
+      .gte("reviewed_at", goalQuarterStart.toISOString()),
+    supabase
+      .from("review_logs")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("prev_interval", 0)
+      .eq("prev_ease", 2.5)
+      .gte("reviewed_at", goalYearStart.toISOString()),
   ]);
 
   const total = totalRes.count ?? 0;
   const mastered = masteredRes.count ?? 0;
   const masteredPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
   const totalLogs = totalLogsRes.count ?? 0;
+  const dayIntrosCount = dayIntrosRes.count ?? 0;
+  const weekIntrosCount = weekIntrosRes.count ?? 0;
+  const quarterIntrosCount = quarterIntrosRes.count ?? 0;
+  const yearIntrosCount = yearIntrosRes.count ?? 0;
+
+  // Year-end projection: year-to-date avg × remaining days in year + current.
+  const yearEnd = new Date(
+    `${goalYearStart.getFullYear()}-12-31T23:59:59+09:00`
+  );
+  const daysIntoYear = Math.max(
+    1,
+    Math.floor((now.getTime() - goalYearStart.getTime()) / 86_400_000)
+  );
+  const daysLeftInYear = Math.max(
+    0,
+    Math.ceil((yearEnd.getTime() - now.getTime()) / 86_400_000)
+  );
+  const recentAvgPerDay = yearIntrosCount / daysIntoYear;
+  const projectedYear = Math.round(
+    yearIntrosCount + recentAvgPerDay * daysLeftInYear
+  );
   const streak = computeStreak(
     (streakLogs.data ?? []).map((r) => r.reviewed_at as string)
   );
@@ -286,6 +354,45 @@ export default async function StatsPage() {
   return (
     <PageShell title="進捗">
       <div className="py-4 flex flex-col gap-5 pb-8">
+        {/* Goals: short / mid / long term targets */}
+        <Section
+          title="目標"
+          subtitle={`年末予測 ${projectedYear.toLocaleString()}語`}
+        >
+          <GoalRow
+            label="今日"
+            value={dayIntrosCount}
+            target={DAILY_NEW_TARGET}
+          />
+          <GoalRow
+            label="今週"
+            value={weekIntrosCount}
+            target={WEEKLY_NEW_TARGET}
+          />
+          <GoalRow
+            label="今四半期"
+            value={quarterIntrosCount}
+            target={QUARTERLY_NEW_TARGET}
+          />
+          <GoalRow
+            label="今年"
+            value={yearIntrosCount}
+            target={YEARLY_NEW_TARGET}
+          />
+          <p className="text-[10px] text-muted mt-1 leading-relaxed">
+            {DAILY_NEW_TARGET}枚/日を続けると1年で{YEARLY_NEW_TARGET.toLocaleString()}語。
+            {projectedYear >= YEARLY_NEW_TARGET
+              ? ` 今のペースなら年末 ${projectedYear.toLocaleString()} で達成見込み ✓`
+              : ` 残り${daysLeftInYear}日で目標達成するには 1日 ${Math.max(
+                  0,
+                  Math.ceil(
+                    (YEARLY_NEW_TARGET - yearIntrosCount) /
+                      Math.max(1, daysLeftInYear)
+                  )
+                )}枚 ペース必要`}
+          </p>
+        </Section>
+
         {/* Summary */}
         <section className="grid grid-cols-3 gap-2">
           <SummaryCell
@@ -607,6 +714,44 @@ function SummaryCell({
       {sub && (
         <div className="text-[9px] text-muted leading-snug">{sub}</div>
       )}
+    </div>
+  );
+}
+
+function GoalRow({
+  label,
+  value,
+  target,
+}: {
+  label: string;
+  value: number;
+  target: number;
+}) {
+  const pct = Math.min(100, Math.round((value / target) * 100));
+  const done = value >= target;
+  const barColor = done
+    ? "bg-success"
+    : pct >= 50
+      ? "bg-accent"
+      : "bg-flame/70";
+  return (
+    <div className="flex flex-col gap-1 py-1">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[11px] font-semibold">{label}</span>
+        <span className="text-[11px] tabular-nums">
+          <span className={done ? "text-success font-semibold" : "font-semibold"}>
+            {value.toLocaleString()}
+          </span>
+          <span className="text-muted"> / {target.toLocaleString()}</span>
+          {done && <span className="text-success ml-1">✓</span>}
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full bg-border/40 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-[width] duration-500 ${barColor}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
     </div>
   );
 }

@@ -12,10 +12,9 @@ import { PageShell } from "@/components/page-shell";
 import { Heatmap } from "@/components/heatmap";
 import { computeStreak, reviewedTodayCount, countsByDay } from "@/lib/streak";
 import { getLeechCount } from "@/lib/leech";
+import { DAILY_NEW_TARGET } from "@/lib/goals";
 
 export const dynamic = "force-dynamic";
-
-const DAILY_NEW_TARGET = 50;
 const MASTERED_THRESHOLD_DAYS = 21;
 const TYPING_MIN_INTERVAL = 14;
 const TYPING_MIN_COUNT = 5;
