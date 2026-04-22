@@ -1,0 +1,19 @@
+name: Daily summary cron
+
+on:
+  schedule:
+    # 21:00 JST = 12:00 UTC — end-of-day recap before bed.
+    - cron: "0 12 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call notifications/daily-summary
+        run: |
+          curl -sS -X POST "https://ankikun.vercel.app/api/notifications/daily-summary" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -w "\nHTTP %{http_code}\n"
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
