@@ -9,6 +9,11 @@ const DAILY_NEW_TARGET = 50;
 const MASTERED_THRESHOLD_DAYS = 21;
 const MOMENTUM_DAYS = 30;
 const RETENTION_WEEKS = 8;
+const FORECAST_DAYS = 30;
+// Session clustering: a gap >5min ends a session. Each review counts for at most
+// 60s (cap avoids over-crediting pauses / phone-down time).
+const SESSION_GAP_MS = 5 * 60_000;
+const REVIEW_TIME_CAP_MS = 60_000;
 
 const TZ = "Asia/Tokyo";
 function ymdTokyo(d: Date): string {
@@ -18,6 +23,14 @@ function shiftDays(base: Date, delta: number): Date {
   const d = new Date(base);
   d.setDate(d.getDate() + delta);
   return d;
+}
+function hourTokyo(d: Date): number {
+  const s = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TZ,
+    hour: "2-digit",
+    hour12: false,
+  }).format(d);
+  return Number(s) % 24;
 }
 
 type Grade = 0 | 1 | 2 | 3;
@@ -46,6 +59,8 @@ export default async function StatsPage() {
     now.getTime() - 100 * 86_400_000
   ).toISOString();
 
+  const forecastUntil = shiftDays(now, FORECAST_DAYS + 1).toISOString();
+
   const [
     totalRes,
     masteredRes,
@@ -53,6 +68,7 @@ export default async function StatsPage() {
     totalLogsRes,
     recentLogs,
     streakLogs,
+    forecastRes,
   ] = await Promise.all([
     supabase
       .from("cards")
@@ -83,6 +99,12 @@ export default async function StatsPage() {
       .select("reviewed_at")
       .eq("user_id", userId)
       .gte("reviewed_at", ninetyAgo),
+    supabase
+      .from("cards")
+      .select("next_review_at, status")
+      .eq("user_id", userId)
+      .neq("status", "suspended")
+      .lte("next_review_at", forecastUntil),
   ]);
 
   const total = totalRes.count ?? 0;
@@ -192,6 +214,74 @@ export default async function StatsPage() {
           weeksWithData.reduce((s, w) => s + w.pct, 0) / weeksWithData.length
         )
       : 0;
+
+  // === Forecast: per-day due load for the next 30 days ===
+  const forecast: { key: string; count: number; overdue: boolean }[] = [];
+  const forecastKeys: string[] = [];
+  for (let i = 0; i <= FORECAST_DAYS; i++) {
+    const key = ymdTokyo(shiftDays(now, i));
+    forecastKeys.push(key);
+    forecast.push({ key, count: 0, overdue: false });
+  }
+  const todayForecastKey = forecastKeys[0];
+  for (const c of forecastRes.data ?? []) {
+    const t = new Date(c.next_review_at as string);
+    const overdue = t.getTime() <= now.getTime();
+    const bucketKey = overdue ? todayForecastKey : ymdTokyo(t);
+    const slot = forecast.find((f) => f.key === bucketKey);
+    if (slot) {
+      slot.count++;
+      if (overdue) slot.overdue = true;
+    }
+  }
+  const maxForecast = Math.max(1, ...forecast.map((f) => f.count));
+  const forecastTotal = forecast.reduce((s, f) => s + f.count, 0);
+
+  // === Hour-of-day distribution (A) + session metrics (B, D) ===
+  const streakStamps = (streakLogs.data ?? [])
+    .map((l) => new Date(l.reviewed_at as string).getTime())
+    .sort((a, b) => a - b);
+
+  const byHour = new Array(24).fill(0);
+  for (const t of streakStamps) byHour[hourTokyo(new Date(t))]++;
+  const peakHour = byHour.reduce(
+    (best, count, h) => (count > best.count ? { h, count } : best),
+    { h: 0, count: 0 }
+  );
+  const maxHour = Math.max(1, ...byHour);
+
+  let sessionCount = 0;
+  let sessionMs = 0;
+  let longestSessionMs = 0;
+  let curStart: number | null = null;
+  let curEnd: number | null = null;
+  for (let i = 0; i < streakStamps.length; i++) {
+    const t = streakStamps[i];
+    const next = streakStamps[i + 1];
+    const gap = next !== undefined ? next - t : Infinity;
+    if (curStart === null) {
+      curStart = t;
+      curEnd = t;
+      sessionCount++;
+    }
+    // Add per-review time: cap short gaps in-session; last of session gets the cap itself.
+    if (gap < SESSION_GAP_MS) {
+      sessionMs += Math.min(gap, REVIEW_TIME_CAP_MS);
+      curEnd = next ?? t;
+    } else {
+      sessionMs += REVIEW_TIME_CAP_MS;
+      const len = (curEnd ?? t) - (curStart ?? t) + REVIEW_TIME_CAP_MS;
+      if (len > longestSessionMs) longestSessionMs = len;
+      curStart = null;
+      curEnd = null;
+    }
+  }
+  const totalMinutes = Math.round(sessionMs / 60_000);
+  const avgSessionMinutes =
+    sessionCount > 0
+      ? Math.round((sessionMs / sessionCount / 60_000) * 10) / 10
+      : 0;
+  const longestMinutes = Math.round(longestSessionMs / 60_000);
 
   return (
     <PageShell title="進捗">
@@ -352,6 +442,99 @@ export default async function StatsPage() {
             85%超なら健全、50%未満なら新規投入を絞るサイン。
           </p>
         </Section>
+
+        {/* Forecast */}
+        <Section
+          title="予定復習数"
+          subtitle={`次${FORECAST_DAYS}日 · 計 ${forecastTotal}枚`}
+        >
+          <div className="flex items-end gap-[2px] h-20">
+            {forecast.map((f, i) => {
+              const pct = (f.count / maxForecast) * 100;
+              const isToday = i === 0;
+              return (
+                <div
+                  key={f.key}
+                  title={`${f.key}: ${f.count}枚${f.overdue ? " (期限切れ含)" : ""}`}
+                  className={`flex-1 rounded-sm transition-opacity ${
+                    isToday
+                      ? "bg-flame/80"
+                      : f.count === 0
+                        ? "bg-border/40"
+                        : "bg-accent/70"
+                  }`}
+                  style={{
+                    height: `${Math.max(f.count > 0 ? 4 : 2, pct)}%`,
+                    opacity: f.count === 0 ? 0.3 : 1,
+                  }}
+                />
+              );
+            })}
+          </div>
+          <DayAxis days={forecast.map((f) => f.key)} />
+          <p className="text-[10px] text-muted mt-1 leading-relaxed">
+            今日の棒は期限切れも合算。旅行や試験前の負荷を事前に把握できる。
+          </p>
+        </Section>
+
+        {/* Time-of-day + session metrics */}
+        <Section
+          title="学習時間"
+          subtitle={`直近100日 · 推定${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`}
+        >
+          {/* Session summary */}
+          <div className="grid grid-cols-3 gap-2">
+            <TimeStat
+              label="セッション"
+              value={`${sessionCount}`}
+              sub="回"
+            />
+            <TimeStat
+              label="平均"
+              value={`${avgSessionMinutes}`}
+              sub="分/回"
+            />
+            <TimeStat
+              label="最長"
+              value={`${longestMinutes}`}
+              sub="分"
+            />
+          </div>
+
+          {/* Hour of day histogram */}
+          <SubTitle
+            label="時刻分布"
+            right={
+              peakHour.count > 0 ? `ピーク ${peakHour.h}時 (${peakHour.count}回)` : undefined
+            }
+          />
+          <div className="flex items-end gap-[2px] h-16">
+            {byHour.map((n, h) => (
+              <div
+                key={h}
+                title={`${h}時: ${n}回`}
+                className={`flex-1 rounded-sm ${
+                  n === 0 ? "bg-border/40" : "bg-accent/70"
+                }`}
+                style={{
+                  height: `${Math.max(n > 0 ? 4 : 2, (n / maxHour) * 100)}%`,
+                  opacity: n === 0 ? 0.3 : 1,
+                }}
+              />
+            ))}
+          </div>
+          <div className="flex justify-between text-[9px] text-muted tabular-nums mt-0.5">
+            <span>0h</span>
+            <span>6h</span>
+            <span>12h</span>
+            <span>18h</span>
+            <span>24h</span>
+          </div>
+          <p className="text-[10px] text-muted mt-1 leading-relaxed">
+            セッション = 5分以上間隔が空くまでの連続レビュー。
+            各レビュー最大60秒でカウント (バックグラウンド放置を補正)。
+          </p>
+        </Section>
       </div>
     </PageShell>
   );
@@ -424,6 +607,28 @@ function SummaryCell({
       {sub && (
         <div className="text-[9px] text-muted leading-snug">{sub}</div>
       )}
+    </div>
+  );
+}
+
+function TimeStat({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="rounded-xl bg-background/60 p-2.5 flex flex-col gap-0.5">
+      <span className="text-[9px] uppercase tracking-widest text-muted font-semibold">
+        {label}
+      </span>
+      <span className="text-lg font-semibold tabular-nums">
+        {value}
+        {sub && <span className="text-[10px] text-muted ml-0.5">{sub}</span>}
+      </span>
     </div>
   );
 }
