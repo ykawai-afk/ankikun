@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as {
     limit?: number;
     force?: boolean;
+    only_before?: string;
   };
   const force = body.force === true;
   const limit = Math.min(Math.max(body.limit ?? 150, 1), 1000);
@@ -72,6 +73,10 @@ export async function POST(req: NextRequest) {
     .order("updated_at", { ascending: true })
     .limit(limit);
   if (!force) query.is("extra_examples", null);
+  // Caller passes the start-of-run timestamp so the loop terminates once
+  // every card has been regenerated in this session (all cards' updated_at
+  // has advanced past the cutoff, leaving nothing to fetch).
+  if (body.only_before) query.lt("updated_at", body.only_before);
   const { data: cards, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!cards?.length) return NextResponse.json({ updated: 0, remaining: 0 });
