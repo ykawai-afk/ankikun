@@ -1,5 +1,5 @@
 import { PageShell } from "@/components/page-shell";
-import { ExternalLink, GripVertical, MousePointerClick } from "lucide-react";
+import { ExternalLink, MousePointerClick } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -43,19 +43,22 @@ export default async function BookmarkletPage() {
           <span className="text-[9px] uppercase tracking-widest text-muted font-semibold">
             ドラッグ先 ↓
           </span>
-          {/* Server component — no event handlers. Clicking on the current
-              page is benign (the bookmarklet runs here and finds no selection),
-              so we don't need to preventDefault. */}
-          <a
-            href={href}
-            className="inline-flex items-center gap-2 self-start rounded-xl bg-accent text-accent-foreground px-4 py-2.5 text-sm font-semibold shadow-[0_8px_24px_-10px_var(--accent)] cursor-grab active:cursor-grabbing"
-            draggable
-          >
-            <GripVertical size={14} className="opacity-70" />
-            Ankikun に追加
-          </a>
+          {/* React blocks javascript: URLs passed via JSX props as an XSS
+              guard. We inject raw HTML so the browser treats the anchor as
+              plain DOM, which lets drag-to-bookmark preserve the href
+              verbatim. href is already percent-encoded so no further HTML
+              escaping is needed for attribute safety. */}
+          <div
+            className="self-start"
+            dangerouslySetInnerHTML={{
+              __html: ready
+                ? `<a href="${href}" draggable="true" class="inline-flex items-center gap-2 rounded-xl bg-accent text-accent-foreground px-4 py-2.5 text-sm font-semibold shadow-[0_8px_24px_-10px_var(--accent)] cursor-grab active:cursor-grabbing no-underline" style="text-decoration:none">📘 Ankikun に追加</a>`
+                : `<span class="inline-flex items-center gap-2 rounded-xl bg-border text-muted px-4 py-2.5 text-sm">利用不可</span>`,
+            }}
+          />
           <p className="text-[10px] text-muted leading-relaxed">
-            ⚠️ クリックではなく <strong>ドラッグ</strong> してブックマークに入れてください。
+            ⚠️ このリンクはこのページで <strong>クリックしても動きません</strong> (Reactがブロックする)。
+            ブックマークバーに <strong>ドラッグ</strong> で登録してから、任意のページで使ってください。
           </p>
         </section>
 
