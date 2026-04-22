@@ -7,35 +7,10 @@ import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, Check, X } from "lucide-react";
 import type { Card } from "@/lib/types";
 import { haptic } from "@/lib/haptics";
+import { isTypingMatch } from "@/lib/typing";
 import { grade } from "../actions";
 
 type Phase = "input" | "correct" | "wrong";
-
-function normalize(s: string): string {
-  return s.trim().toLowerCase().replace(/[.,!?;:'"()]/g, "");
-}
-
-function leven(a: string, b: string): number {
-  if (a === b) return 0;
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-  const dp = Array.from({ length: a.length + 1 }, () =>
-    new Array(b.length + 1).fill(0)
-  );
-  for (let i = 0; i <= a.length; i++) dp[i][0] = i;
-  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      dp[i][j] = Math.min(
-        dp[i - 1][j] + 1,
-        dp[i][j - 1] + 1,
-        dp[i - 1][j - 1] + cost
-      );
-    }
-  }
-  return dp[a.length][b.length];
-}
 
 export function TypingSession({ initialQueue }: { initialQueue: Card[] }) {
   const router = useRouter();
@@ -58,12 +33,8 @@ export function TypingSession({ initialQueue }: { initialQueue: Card[] }) {
 
   const check = useCallback(() => {
     if (!card || phase !== "input") return;
-    const got = normalize(value);
-    if (!got) return;
-    const want = normalize(card.word);
-    const dist = leven(got, want);
-    const allow = want.length <= 5 ? 0 : 1;
-    const ok = dist <= allow;
+    if (!value.trim()) return;
+    const ok = isTypingMatch(value, card.word);
 
     haptic(ok ? "good" : "again");
     setCounts((c) =>

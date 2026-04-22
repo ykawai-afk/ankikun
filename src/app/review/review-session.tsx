@@ -7,7 +7,9 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowLeft,
   BookOpen,
+  Check,
   GraduationCap,
+  Keyboard,
   Loader2,
   Pause,
   Play,
@@ -15,6 +17,7 @@ import {
   Shuffle,
   Sparkles,
   Volume2,
+  X,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import type {
@@ -25,7 +28,10 @@ import type {
   RelatedWord,
 } from "@/lib/types";
 import { haptic } from "@/lib/haptics";
+import { isTypingMatch } from "@/lib/typing";
 import { grade } from "./actions";
+
+const REVERSE_TYPING_MIN_INTERVAL = 21;
 
 const BUTTONS: {
   rating: Rating;
@@ -113,6 +119,25 @@ export function ReviewSession({
   }, [cloze]);
 
   const card = queue[0] as Card | undefined;
+  const isTypingCard =
+    !!card && (card.interval_days ?? 0) >= REVERSE_TYPING_MIN_INTERVAL;
+
+  const [typingValue, setTypingValue] = useState("");
+  const [typingPhase, setTypingPhase] = useState<"input" | "correct" | "wrong">(
+    "input"
+  );
+  const typingInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setTypingValue("");
+    setTypingPhase("input");
+  }, [card?.id]);
+
+  useEffect(() => {
+    if (!isTypingCard || typingPhase !== "input") return;
+    const t = setTimeout(() => typingInputRef.current?.focus(), 50);
+    return () => clearTimeout(t);
+  }, [isTypingCard, typingPhase, card?.id]);
 
   const againStreakRef = useRef<Map<string, number>>(new Map());
   const similarMapRef = useRef<
@@ -148,8 +173,9 @@ export function ReviewSession({
   }, []);
 
   const rate = useCallback(
-    (r: Rating) => {
-      if (!revealed || !card) return;
+    (r: Rating, force = false) => {
+      if (!card) return;
+      if (!force && !revealed) return;
       const cardId = card.id;
 
       haptic(r === 0 ? "again" : r === 1 ? "medium" : r === 2 ? "good" : "light");
@@ -233,12 +259,14 @@ export function ReviewSession({
   useEffect(() => {
     if (!card) return;
     if (autoPlay) return;
+    if (isTypingCard && typingPhase === "input") return;
     if (cloze && !revealed) return;
     speak(card.word);
-  }, [card, revealed, cloze, autoPlay, speak]);
+  }, [card, revealed, cloze, autoPlay, speak, isTypingCard, typingPhase]);
 
   useEffect(() => {
     if (!autoPlay || !card) return;
+    if (isTypingCard) return;
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     let cancelled = false;
     const sleep = (ms: number) =>
@@ -288,9 +316,30 @@ export function ReviewSession({
     };
   }, [autoPlay, card?.id]);
 
+  const checkTyping = useCallback(() => {
+    if (!card || !isTypingCard || typingPhase !== "input") return;
+    if (!typingValue.trim()) return;
+    const ok = isTypingMatch(typingValue, card.word);
+    haptic(ok ? "good" : "again");
+    setTypingPhase(ok ? "correct" : "wrong");
+  }, [card, isTypingCard, typingPhase, typingValue]);
+
+  const nextTyping = useCallback(() => {
+    if (!isTypingCard || typingPhase === "input") return;
+    const r: Rating = typingPhase === "correct" ? 2 : 0;
+    rate(r, true);
+  }, [isTypingCard, typingPhase, rate]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isTypingCard) {
+        if (typingPhase !== "input" && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          nextTyping();
+        }
+        return;
+      }
       if (!revealed && (e.key === " " || e.key === "Enter")) {
         e.preventDefault();
         setRevealed(true);
@@ -306,7 +355,7 @@ export function ReviewSession({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [rate, revealed]);
+  }, [rate, revealed, isTypingCard, typingPhase, nextTyping]);
 
   const [deepDiveBusyId, setDeepDiveBusyId] = useState<string | null>(null);
 
@@ -390,31 +439,40 @@ export function ReviewSession({
               className="h-full bg-accent transition-[width] duration-200 ease-out"
             />
           </div>
-          <button
-            type="button"
-            onClick={() => setAutoPlay((v) => !v)}
-            aria-pressed={autoPlay}
-            aria-label={autoPlay ? "自動再生を停止" : "自動再生"}
-            className={`w-6 h-6 rounded-full flex items-center justify-center transition active:scale-95 ${
-              autoPlay
-                ? "bg-accent text-accent-foreground"
-                : "bg-surface-2 text-muted"
-            }`}
-          >
-            {autoPlay ? <Pause size={11} /> : <Play size={11} />}
-          </button>
-          <button
-            type="button"
-            onClick={() => setCloze((v) => !v)}
-            aria-pressed={cloze}
-            className={`h-6 px-2 rounded-full text-[10px] font-semibold transition active:scale-95 ${
-              cloze
-                ? "bg-accent text-accent-foreground"
-                : "bg-surface-2 text-muted"
-            }`}
-          >
-            Cloze
-          </button>
+          {isTypingCard ? (
+            <span className="h-6 px-2 rounded-full text-[10px] font-semibold bg-accent text-accent-foreground inline-flex items-center gap-1">
+              <Keyboard size={10} />
+              Type
+            </span>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setAutoPlay((v) => !v)}
+                aria-pressed={autoPlay}
+                aria-label={autoPlay ? "自動再生を停止" : "自動再生"}
+                className={`w-6 h-6 rounded-full flex items-center justify-center transition active:scale-95 ${
+                  autoPlay
+                    ? "bg-accent text-accent-foreground"
+                    : "bg-surface-2 text-muted"
+                }`}
+              >
+                {autoPlay ? <Pause size={11} /> : <Play size={11} />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCloze((v) => !v)}
+                aria-pressed={cloze}
+                className={`h-6 px-2 rounded-full text-[10px] font-semibold transition active:scale-95 ${
+                  cloze
+                    ? "bg-accent text-accent-foreground"
+                    : "bg-surface-2 text-muted"
+                }`}
+              >
+                Cloze
+              </button>
+            </>
+          )}
           <span className="text-[10px] text-muted tabular-nums w-7 text-right">
             {remaining}
           </span>
@@ -453,7 +511,16 @@ export function ReviewSession({
             />
           )}
 
-          {cloze && clozeFront ? (
+          {isTypingCard ? (
+            <TypingFront
+              card={card}
+              phase={typingPhase}
+              value={typingValue}
+              setValue={setTypingValue}
+              onSubmit={checkTyping}
+              inputRef={typingInputRef}
+            />
+          ) : cloze && clozeFront ? (
             <div className="flex flex-col items-center gap-2 w-full max-w-md">
               <span className="text-[10px] uppercase tracking-widest text-muted">
                 Cloze · この空欄は？
@@ -493,14 +560,61 @@ export function ReviewSession({
           )}
 
           <AnimatePresence initial={false}>
-            {revealed && (
+            {(isTypingCard ? typingPhase !== "input" : revealed) && (
               <motion.div
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.12, ease: "easeOut" }}
                 className="w-full max-w-md flex flex-col gap-2 mt-1"
               >
-                {cloze && (
+                {isTypingCard && (
+                  <div
+                    className={`rounded-xl p-3 text-center ${
+                      typingPhase === "correct"
+                        ? "bg-success-soft"
+                        : "bg-red-500/10"
+                    }`}
+                  >
+                    <span
+                      className={`text-[10px] uppercase tracking-widest font-semibold inline-flex items-center gap-1 ${
+                        typingPhase === "correct"
+                          ? "text-success"
+                          : "text-red-600 dark:text-red-400"
+                      }`}
+                    >
+                      {typingPhase === "correct" ? (
+                        <>
+                          <Check size={11} /> 正解
+                        </>
+                      ) : (
+                        <>
+                          <X size={11} /> 不正解
+                        </>
+                      )}
+                    </span>
+                    {typingPhase === "wrong" && (
+                      <div className="text-[11px] text-muted line-through mt-0.5">
+                        {typingValue}
+                      </div>
+                    )}
+                    <div className="text-2xl font-semibold tracking-tight mt-0.5 flex items-center justify-center gap-2">
+                      {card.word}
+                      <button
+                        onClick={speakWord}
+                        aria-label="発音を聞く"
+                        className="w-7 h-7 rounded-full bg-background flex items-center justify-center active:scale-95 hover:opacity-90 transition"
+                      >
+                        <Volume2 size={12} />
+                      </button>
+                    </div>
+                    {card.reading && (
+                      <div className="text-[11px] text-muted font-mono mt-0.5">
+                        /{card.reading.replace(/\//g, "")}/
+                      </div>
+                    )}
+                  </div>
+                )}
+                {cloze && !isTypingCard && (
                   <div className="rounded-xl bg-accent-soft p-3 text-center">
                     <span className="text-[10px] uppercase tracking-widest text-accent font-semibold">
                       答え
@@ -591,7 +705,28 @@ export function ReviewSession({
       {/* Bottom action */}
       <div className="fixed bottom-16 left-0 right-0 z-20 bg-gradient-to-t from-background via-background to-transparent pt-6 pb-3">
         <div className="max-w-xl mx-auto px-4">
-          {!revealed ? (
+          {isTypingCard ? (
+            typingPhase === "input" ? (
+              <button
+                type="button"
+                onClick={checkTyping}
+                disabled={!typingValue.trim()}
+                className="w-full h-11 rounded-xl bg-accent text-accent-foreground font-medium text-sm active:scale-[0.98] transition shadow-[0_8px_24px_-10px_var(--accent)] disabled:opacity-50"
+              >
+                チェック
+                <span className="ml-2 text-[10px] opacity-60">Enter</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={nextTyping}
+                className="w-full h-11 rounded-xl bg-foreground text-background font-medium text-sm active:scale-[0.98] transition"
+              >
+                次のカード
+                <span className="ml-2 text-[10px] opacity-60">Enter</span>
+              </button>
+            )
+          ) : !revealed ? (
             <button
               onClick={() => setRevealed(true)}
               className="w-full h-11 rounded-xl bg-accent text-accent-foreground font-medium text-sm active:scale-[0.98] transition shadow-[0_8px_24px_-10px_var(--accent)]"
@@ -953,5 +1088,58 @@ function Kbd({ children }: { children: React.ReactNode }) {
     <kbd className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded border border-border bg-surface-2 text-[9px] font-mono">
       {children}
     </kbd>
+  );
+}
+
+function TypingFront({
+  card,
+  phase,
+  value,
+  setValue,
+  onSubmit,
+  inputRef,
+}: {
+  card: Card;
+  phase: "input" | "correct" | "wrong";
+  value: string;
+  setValue: (v: string) => void;
+  onSubmit: () => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3 w-full max-w-md">
+      <span className="text-[9px] uppercase tracking-widest text-accent font-semibold inline-flex items-center gap-1">
+        <Keyboard size={10} /> 英訳を入力 · 定着チェック
+      </span>
+      <div className="rounded-2xl bg-surface-2 px-4 py-4 border-l-2 border-accent w-full flex flex-col gap-1.5">
+        <p className="text-xl sm:text-2xl font-semibold leading-snug tracking-tight">
+          {card.definition_ja}
+        </p>
+        {card.part_of_speech && (
+          <span className="text-[10px] uppercase tracking-widest text-muted">
+            {card.part_of_speech}
+          </span>
+        )}
+      </div>
+      {phase === "input" && (
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              onSubmit();
+            }
+          }}
+          placeholder="type the word…"
+          autoCapitalize="none"
+          autoCorrect="off"
+          autoComplete="off"
+          spellCheck={false}
+          className="w-full h-14 px-4 rounded-xl bg-background border-2 border-border focus:border-accent focus:outline-none text-lg text-center font-mono tracking-wide"
+        />
+      )}
+    </div>
   );
 }
