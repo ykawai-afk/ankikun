@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { pickMediaType, processIngest, processUrlIngest } from "@/lib/ingest";
 import { getUserId } from "@/lib/user";
+import { CACHE_TAGS } from "@/lib/cache";
 
 export type AddResult =
   | { ok: true; cardsCreated: number; words: string[] }
@@ -25,6 +26,7 @@ export async function addFromImage(formData: FormData): Promise<AddResult> {
     const result = await processIngest({ bytes, mediaType, userId });
     revalidatePath("/");
     revalidatePath("/cards");
+    updateTag(CACHE_TAGS.cards);
     return {
       ok: true,
       cardsCreated: result.cards_created,
@@ -47,6 +49,7 @@ export async function addFromUrl(formData: FormData): Promise<AddResult> {
     const result = await processUrlIngest({ url, userId });
     revalidatePath("/");
     revalidatePath("/cards");
+    updateTag(CACHE_TAGS.cards);
     return {
       ok: true,
       cardsCreated: result.cards_created,

@@ -1,10 +1,11 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
 import { schedule } from "@/lib/srs";
 import type { Card, Rating } from "@/lib/types";
+import { CACHE_TAGS } from "@/lib/cache";
 
 // Best-effort background grade. The client optimistically advances its queue
 // and this updates the DB without forcing a re-render.
@@ -54,4 +55,6 @@ export async function grade(cardId: string, rating: Rating) {
 
   revalidatePath("/");
   revalidatePath("/cards");
+  updateTag(CACHE_TAGS.cards);
+  updateTag(CACHE_TAGS.reviewLogs);
 }

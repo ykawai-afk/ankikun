@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
 import type { CardStatus } from "@/lib/types";
+import { CACHE_TAGS } from "@/lib/cache";
 
 export type CardEditInput = {
   word: string;
@@ -55,6 +56,7 @@ export async function updateCard(
 
   revalidatePath("/cards");
   revalidatePath("/");
+  updateTag(CACHE_TAGS.cards);
   return { ok: true };
 }
 
@@ -73,6 +75,7 @@ export async function updateUserNote(
   if (error) return { ok: false, error: error.message };
   revalidatePath("/cards");
   revalidatePath(`/cards/${cardId}`);
+  updateTag(CACHE_TAGS.cards);
   return { ok: true };
 }
 
@@ -90,6 +93,7 @@ export async function setCardStatus(
   if (error) return { ok: false, error: error.message };
   revalidatePath("/cards");
   revalidatePath("/");
+  updateTag(CACHE_TAGS.cards);
   return { ok: true };
 }
 
@@ -104,5 +108,6 @@ export async function deleteCard(cardId: string): Promise<ActionResult> {
   if (error) return { ok: false, error: error.message };
   revalidatePath("/cards");
   revalidatePath("/");
+  updateTag(CACHE_TAGS.cards);
   return { ok: true };
 }

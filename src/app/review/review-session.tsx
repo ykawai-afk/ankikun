@@ -243,8 +243,6 @@ export function ReviewSession({
     [card, queue.length, revealed, router, fetchSimilar]
   );
 
-  const audioElRef = useRef<HTMLAudioElement | null>(null);
-
   const speak = useCallback((text: string) => {
     if (!text) return;
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -255,23 +253,12 @@ export function ReviewSession({
     window.speechSynthesis.speak(u);
   }, []);
 
+  // TTS handles multi-word phrases faithfully ("cut corners" reads as
+  // "cut corners"); the Free Dictionary MP3 only returned a one-word clip
+  // which clipped phrases to their first token. Back to TTS across the
+  // board until we have a phrase-capable native source.
   const speakWord = useCallback(() => {
-    if (!card) return;
-    // Prefer native pronunciation MP3 when available, fall back to browser TTS.
-    if (card.audio_url) {
-      try {
-        if (typeof window === "undefined") return;
-        if (!audioElRef.current) audioElRef.current = new Audio();
-        const el = audioElRef.current;
-        el.src = card.audio_url;
-        el.currentTime = 0;
-        void el.play().catch(() => speak(card.word));
-        return;
-      } catch {
-        // Fall through to TTS
-      }
-    }
-    speak(card.word);
+    if (card) speak(card.word);
   }, [card, speak]);
 
   const [autoPlay, setAutoPlay] = useState(false);

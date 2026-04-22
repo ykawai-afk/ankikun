@@ -1,5 +1,7 @@
+import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
+import { CACHE_TAGS } from "@/lib/cache";
 import { PageShell } from "@/components/page-shell";
 import { LevelAvatar } from "@/components/level-avatar";
 import { computeStreak } from "@/lib/streak";
@@ -59,8 +61,50 @@ const GRADE_META: Record<
   3: { label: "Easy", cls: "bg-sky-500", dot: "bg-sky-500" },
 };
 
+// Server-cached bulk fetch: card snapshot + year-to-date logs + 100-day
+// reviewed_at stream. Invalidated via revalidateTag(CACHE_TAGS.cards /
+// .reviewLogs) whenever an action mutates either table.
+const getStatsSnapshot = unstable_cache(
+  async (userId: string, yearStartIso: string, ninetyAgoIso: string) => {
+    const supabase = createAdminClient();
+    const [totalRes, activeCardsRes, logsYearRes, logsStreakRes] =
+      await Promise.all([
+        supabase
+          .from("cards")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", userId),
+        supabase
+          .from("cards")
+          .select(
+            "id, interval_days, ease_factor, repetitions, difficulty, next_review_at, status"
+          )
+          .eq("user_id", userId),
+        supabase
+          .from("review_logs")
+          .select("card_id, rating, prev_interval, prev_ease, reviewed_at")
+          .eq("user_id", userId)
+          .gte("reviewed_at", yearStartIso)
+          .order("reviewed_at", { ascending: true }),
+        supabase
+          .from("review_logs")
+          .select("reviewed_at")
+          .eq("user_id", userId)
+          .gte("reviewed_at", ninetyAgoIso),
+      ]);
+    return {
+      total: totalRes.count ?? 0,
+      cards: activeCardsRes.data ?? [],
+      yearLogs: logsYearRes.data ?? [],
+      streakReviewedAts: (logsStreakRes.data ?? []).map(
+        (r) => r.reviewed_at as string
+      ),
+    };
+  },
+  ["stats-snapshot"],
+  { revalidate: 60, tags: [CACHE_TAGS.cards, CACHE_TAGS.reviewLogs] }
+);
+
 export default async function StatsPage() {
-  const supabase = createAdminClient();
   const userId = getUserId();
   const now = new Date();
   const momentumFrom = new Date(
@@ -79,39 +123,13 @@ export default async function StatsPage() {
   const goalQuarterStart = jstStartOfQuarter(now);
   const goalYearStart = jstStartOfYear(now);
 
-  // Consolidated from 11 parallel queries down to 4. Card counts and
-  // distributions derive from a single cards fetch; intro-window counts
-  // all fall out of one year-to-date logs fetch.
-  const [totalRes, activeCardsRes, logsYearRes, logsStreakRes] =
-    await Promise.all([
-      supabase
-        .from("cards")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", userId),
-      supabase
-        .from("cards")
-        .select(
-          "id, interval_days, ease_factor, repetitions, difficulty, next_review_at, status"
-        )
-        .eq("user_id", userId),
-      // All year-to-date logs with full fields. Windowed counts are bucketed
-      // client-side; 8-week accuracy + retention windows slice a prefix.
-      supabase
-        .from("review_logs")
-        .select("card_id, rating, prev_interval, prev_ease, reviewed_at")
-        .eq("user_id", userId)
-        .gte("reviewed_at", goalYearStart.toISOString())
-        .order("reviewed_at", { ascending: true }),
-      // 100-day reviewed_at stream for streak + heatmap + hourly histogram.
-      supabase
-        .from("review_logs")
-        .select("reviewed_at")
-        .eq("user_id", userId)
-        .gte("reviewed_at", ninetyAgo),
-    ]);
-
-  const total = totalRes.count ?? 0;
-  const allCards = (activeCardsRes.data ?? []) as {
+  const snapshot = await getStatsSnapshot(
+    userId,
+    goalYearStart.toISOString(),
+    ninetyAgo
+  );
+  const { total, cards, yearLogs, streakReviewedAts } = snapshot;
+  const allCards = cards as {
     id: string;
     interval_days: number;
     ease_factor: number;
@@ -134,7 +152,6 @@ export default async function StatsPage() {
   );
 
   // All year-to-date logs, bucketed into the four goal windows.
-  const yearLogs = logsYearRes.data ?? [];
   const totalLogs = yearLogs.length; // "all time" == year for this display
   const dayStartMs = goalDayStart.getTime();
   const weekStartMs = goalWeekStart.getTime();
@@ -162,7 +179,7 @@ export default async function StatsPage() {
   const recentLogs = { data: recentLogsData };
   const forecastRes = { data: forecastRaw };
   const activeRes = { data: activeRaw };
-  const streakLogs = logsStreakRes;
+  const streakLogs = { data: streakReviewedAts.map((r) => ({ reviewed_at: r })) };
 
   // Year-end projection: year-to-date avg × remaining days in year + current.
   const yearEnd = new Date(

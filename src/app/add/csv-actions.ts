@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
+import { CACHE_TAGS } from "@/lib/cache";
 
 export type CsvCard = {
   word: string;
@@ -50,5 +51,6 @@ export async function addFromCsv(cards: CsvCard[]): Promise<CsvAddResult> {
 
   revalidatePath("/");
   revalidatePath("/cards");
+  updateTag(CACHE_TAGS.cards);
   return { ok: true, cardsCreated: rows.length };
 }
