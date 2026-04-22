@@ -5,27 +5,89 @@ export const WEEKLY_NEW_TARGET = 150;
 export const QUARTERLY_NEW_TARGET = 1500;
 export const YEARLY_NEW_TARGET = 6000;
 
-// Vocabulary size estimation. Baseline reflects the user's pre-Ankikun
-// education (鉄壁完遂 → 減衰後) and per-card weights credit Ankikun exposure
-// differently depending on how rare the word is.
-export const VOCAB_BASELINE = 7000;
+// Vocabulary size estimation. Baseline is the pre-Ankikun floor (鉄壁完遂
+// @ 一橋 → 減衰後). Card weights only count words the user likely didn't
+// already have — so the cheaper CEFR levels contribute nothing (rehearsal
+// rather than expansion) and only the upper bands add to the tally.
+export const VOCAB_BASELINE = 8000;
 export const VOCAB_CARD_WEIGHT: Record<string, number> = {
-  A1: 0.5,
-  A2: 0.7,
-  B1: 1.0,
-  B2: 1.2,
-  C1: 1.5,
-  C2: 1.8,
-  unknown: 1.0,
+  A1: 0,
+  A2: 0,
+  B1: 0,
+  B2: 0.2,
+  C1: 0.7,
+  C2: 1.0,
+  unknown: 0.3,
 };
 
-// Milestones shown next to the estimated total.
-export const VOCAB_MILESTONES: { label: string; value: number }[] = [
-  { label: "TOEIC 900", value: 8_000 },
-  { label: "英検1級", value: 10_000 },
-  { label: "研究者", value: 15_000 },
-  { label: "Native教養層", value: 20_000 },
+// Current-level badge. The highest entry whose `value` is ≤ estimate is
+// picked as the user's current milestone.
+export const VOCAB_MILESTONES: {
+  value: number;
+  label: string;
+  sub: string;
+  emoji: string;
+}[] = [
+  {
+    value: 2_000,
+    label: "Toddler",
+    sub: "米国3歳児並み",
+    emoji: "🧸",
+  },
+  {
+    value: 4_000,
+    label: "Kindergartener",
+    sub: "米国5歳児 / 幼稚園卒",
+    emoji: "🧒",
+  },
+  {
+    value: 7_000,
+    label: "2nd Grader",
+    sub: "米国小2並み",
+    emoji: "📚",
+  },
+  {
+    value: 10_000,
+    label: "5th Grader",
+    sub: "米国小5 / 英検1級",
+    emoji: "🏫",
+  },
+  {
+    value: 15_000,
+    label: "8th Grader",
+    sub: "米国中2 / TOEFL 100+",
+    emoji: "🎒",
+  },
+  {
+    value: 20_000,
+    label: "HS Senior",
+    sub: "米国高校卒",
+    emoji: "🎓",
+  },
+  {
+    value: 30_000,
+    label: "College Grad",
+    sub: "米国大卒",
+    emoji: "📜",
+  },
+  {
+    value: 40_000,
+    label: "Professional",
+    sub: "教養層ネイティブ",
+    emoji: "👔",
+  },
 ];
+
+export function vocabCurrentLevel(
+  estimate: number
+): (typeof VOCAB_MILESTONES)[number] | null {
+  let current: (typeof VOCAB_MILESTONES)[number] | null = null;
+  for (const m of VOCAB_MILESTONES) {
+    if (estimate >= m.value) current = m;
+    else break;
+  }
+  return current;
+}
 
 export const TZ = "Asia/Tokyo";
 

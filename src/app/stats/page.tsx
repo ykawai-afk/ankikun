@@ -10,6 +10,7 @@ import {
   VOCAB_BASELINE,
   VOCAB_CARD_WEIGHT,
   VOCAB_MILESTONES,
+  vocabCurrentLevel,
   jstStartOfDay,
   jstStartOfWeek,
   jstStartOfQuarter,
@@ -247,10 +248,23 @@ export default async function StatsPage() {
   }
   const vocabCardContribution = Object.entries(cefrCounts).reduce(
     (sum, [level, count]) =>
-      sum + count * (VOCAB_CARD_WEIGHT[level] ?? 1),
+      sum + count * (VOCAB_CARD_WEIGHT[level] ?? 0),
     0
   );
   const vocabEstimate = Math.round(VOCAB_BASELINE + vocabCardContribution);
+  const currentLevel = vocabCurrentLevel(vocabEstimate);
+  const nextLevel = VOCAB_MILESTONES.find((m) => m.value > vocabEstimate);
+  const toNext = nextLevel ? nextLevel.value - vocabEstimate : null;
+  // Per-level contribution breakdown for the explainer panel
+  const contribRows = (
+    ["B2", "C1", "C2", "unknown"] as const
+  )
+    .map((lv) => ({
+      lv,
+      count: cefrCounts[lv as keyof typeof cefrCounts] ?? 0,
+      weight: VOCAB_CARD_WEIGHT[lv] ?? 0,
+    }))
+    .filter((r) => r.count > 0);
   const cefrMax = Math.max(1, ...Object.values(cefrCounts));
   const cefrCoveredPct =
     active.length > 0
@@ -395,18 +409,102 @@ export default async function StatsPage() {
           title="推定総語彙"
           subtitle={`CEFR判定済 ${cefrCoveredPct}%`}
         >
-          <div className="flex items-end gap-2">
-            <span className="text-4xl font-semibold tabular-nums bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent leading-none">
-              {vocabEstimate.toLocaleString()}
-            </span>
-            <span className="text-xs text-muted pb-1">語 (受動)</span>
-          </div>
-          <p className="text-[10px] text-muted leading-relaxed">
-            ベース {VOCAB_BASELINE.toLocaleString()}語 (鉄壁完遂後の減衰想定) + Ankikun加算 {Math.round(vocabCardContribution).toLocaleString()}語
-          </p>
+          {/* Current level badge */}
+          {currentLevel && (
+            <div className="rounded-2xl bg-gradient-to-br from-accent-soft to-background border border-accent/20 p-4 flex items-center gap-3">
+              <div className="text-4xl shrink-0" aria-hidden>
+                {currentLevel.emoji}
+              </div>
+              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                <span className="text-[9px] uppercase tracking-widest text-accent font-semibold">
+                  Current Level
+                </span>
+                <span className="text-base font-semibold leading-tight truncate">
+                  {currentLevel.label}
+                </span>
+                <span className="text-[11px] text-muted leading-tight">
+                  {currentLevel.sub}
+                </span>
+              </div>
+              <div className="flex flex-col items-end gap-0.5 shrink-0">
+                <span className="text-2xl font-semibold tabular-nums leading-none bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent">
+                  {vocabEstimate.toLocaleString()}
+                </span>
+                <span className="text-[9px] text-muted">語 受動</span>
+              </div>
+            </div>
+          )}
 
-          {/* CEFR histogram */}
-          <div className="flex flex-col gap-1 mt-2">
+          {/* Next-level progress */}
+          {nextLevel && toNext !== null && (
+            <div className="flex flex-col gap-1 mt-1">
+              <div className="flex items-baseline justify-between text-[10px]">
+                <span className="text-muted">
+                  次: {nextLevel.emoji} {nextLevel.label}
+                </span>
+                <span className="tabular-nums">
+                  あと <span className="font-semibold">{toNext.toLocaleString()}</span> 語
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-border/40 overflow-hidden">
+                <div
+                  className="h-full bg-accent transition-[width] duration-500"
+                  style={{
+                    width: `${currentLevel
+                      ? Math.min(
+                          100,
+                          ((vocabEstimate - currentLevel.value) /
+                            (nextLevel.value - currentLevel.value)) *
+                            100
+                        )
+                      : 0}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Explainer */}
+          <div className="rounded-xl bg-background/50 p-3 flex flex-col gap-1 mt-2">
+            <span className="text-[9px] uppercase tracking-widest text-muted font-semibold">
+              内訳
+            </span>
+            <div className="flex items-baseline justify-between text-[11px]">
+              <span>経歴ベース</span>
+              <span className="tabular-nums font-semibold">
+                {VOCAB_BASELINE.toLocaleString()}
+              </span>
+            </div>
+            <span className="text-[9px] text-muted leading-tight -mt-0.5">
+              鉄壁完遂 + 一橋合格 → 減衰後 の控えめ見積り
+            </span>
+            <div className="flex items-baseline justify-between text-[11px] mt-1 pt-1 border-t border-border/30">
+              <span>Ankikun 加算</span>
+              <span className="tabular-nums font-semibold text-accent">
+                +{Math.round(vocabCardContribution).toLocaleString()}
+              </span>
+            </div>
+            {contribRows.map((r) => (
+              <div
+                key={r.lv}
+                className="flex items-baseline justify-between text-[10px] text-muted pl-3"
+              >
+                <span>
+                  {r.lv} {r.count}枚 × {r.weight}
+                </span>
+                <span className="tabular-nums">
+                  {Math.round(r.count * r.weight).toLocaleString()}
+                </span>
+              </div>
+            ))}
+            <span className="text-[9px] text-muted leading-tight mt-0.5">
+              B1以下は既知前提で加算なし。C1以上ほど重み大
+            </span>
+          </div>
+
+          {/* CEFR distribution histogram */}
+          <SubTitle label="CEFR分布" />
+          <div className="flex flex-col gap-1">
             {cefrOrder.map((lv) => {
               const n = cefrCounts[lv];
               const pct = (n / cefrMax) * 100;
@@ -441,28 +539,46 @@ export default async function StatsPage() {
               );
             })}
             {cefrCounts.unknown > 0 && (
-              <div className="flex items-center gap-2 text-[10px] text-muted mt-1">
+              <div className="flex items-center gap-2 text-[10px] text-muted mt-0.5">
                 <span>未判定 {cefrCounts.unknown}枚</span>
               </div>
             )}
           </div>
 
-          {/* Milestones */}
-          <div className="flex flex-col gap-0.5 mt-2 pt-2 border-t border-border/40">
+          {/* All milestones with ✓/○ */}
+          <SubTitle label="マイルストーン" />
+          <div className="flex flex-col gap-1">
             {VOCAB_MILESTONES.map((m) => {
               const reached = vocabEstimate >= m.value;
+              const isCurrent = currentLevel?.value === m.value;
               return (
                 <div
                   key={m.label}
-                  className="flex items-center justify-between text-[10px]"
+                  className={`flex items-center gap-2 text-[11px] rounded-lg px-2 py-1 ${
+                    isCurrent ? "bg-accent-soft" : ""
+                  }`}
                 >
-                  <span className={reached ? "text-success" : "text-muted"}>
-                    {reached ? "✓" : "○"} {m.label}
+                  <span className="text-base w-6 text-center" aria-hidden>
+                    {m.emoji}
                   </span>
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span
+                      className={`font-semibold leading-tight truncate ${
+                        reached ? "" : "text-muted"
+                      }`}
+                    >
+                      {m.label}
+                    </span>
+                    <span className="text-[9px] text-muted truncate">
+                      {m.sub}
+                    </span>
+                  </div>
                   <span
-                    className={`tabular-nums ${reached ? "text-success" : "text-muted"}`}
+                    className={`tabular-nums shrink-0 ${
+                      reached ? "text-success font-semibold" : "text-muted"
+                    }`}
                   >
-                    {m.value.toLocaleString()}
+                    {reached ? "✓" : "○"} {m.value.toLocaleString()}
                   </span>
                 </div>
               );
