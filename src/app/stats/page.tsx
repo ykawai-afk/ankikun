@@ -79,94 +79,90 @@ export default async function StatsPage() {
   const goalQuarterStart = jstStartOfQuarter(now);
   const goalYearStart = jstStartOfYear(now);
 
-  const [
-    totalRes,
-    masteredRes,
-    activeRes,
-    totalLogsRes,
-    recentLogs,
-    streakLogs,
-    forecastRes,
-    dayIntrosRes,
-    weekIntrosRes,
-    quarterIntrosRes,
-    yearIntrosRes,
-  ] = await Promise.all([
-    supabase
-      .from("cards")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId),
-    supabase
-      .from("cards")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .gte("interval_days", MASTERED_THRESHOLD_DAYS),
-    supabase
-      .from("cards")
-      .select("id, interval_days, ease_factor, repetitions, difficulty")
-      .eq("user_id", userId)
-      .neq("status", "suspended"),
-    supabase
-      .from("review_logs")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId),
-    supabase
-      .from("review_logs")
-      .select("card_id, rating, prev_interval, prev_ease, reviewed_at")
-      .eq("user_id", userId)
-      .gte("reviewed_at", retentionFrom)
-      .order("reviewed_at", { ascending: true }),
-    supabase
-      .from("review_logs")
-      .select("reviewed_at")
-      .eq("user_id", userId)
-      .gte("reviewed_at", ninetyAgo),
-    supabase
-      .from("cards")
-      .select("next_review_at, status")
-      .eq("user_id", userId)
-      .neq("status", "suspended")
-      .lte("next_review_at", forecastUntil),
-    // New-intro counters keyed on (prev_interval=0 AND prev_ease=2.5) — the
-    // "first-ever grading on a fresh card" fingerprint — across four windows.
-    supabase
-      .from("review_logs")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("prev_interval", 0)
-      .eq("prev_ease", 2.5)
-      .gte("reviewed_at", goalDayStart.toISOString()),
-    supabase
-      .from("review_logs")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("prev_interval", 0)
-      .eq("prev_ease", 2.5)
-      .gte("reviewed_at", goalWeekStart.toISOString()),
-    supabase
-      .from("review_logs")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("prev_interval", 0)
-      .eq("prev_ease", 2.5)
-      .gte("reviewed_at", goalQuarterStart.toISOString()),
-    supabase
-      .from("review_logs")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("prev_interval", 0)
-      .eq("prev_ease", 2.5)
-      .gte("reviewed_at", goalYearStart.toISOString()),
-  ]);
+  // Consolidated from 11 parallel queries down to 4. Card counts and
+  // distributions derive from a single cards fetch; intro-window counts
+  // all fall out of one year-to-date logs fetch.
+  const [totalRes, activeCardsRes, logsYearRes, logsStreakRes] =
+    await Promise.all([
+      supabase
+        .from("cards")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId),
+      supabase
+        .from("cards")
+        .select(
+          "id, interval_days, ease_factor, repetitions, difficulty, next_review_at, status"
+        )
+        .eq("user_id", userId),
+      // All year-to-date logs with full fields. Windowed counts are bucketed
+      // client-side; 8-week accuracy + retention windows slice a prefix.
+      supabase
+        .from("review_logs")
+        .select("card_id, rating, prev_interval, prev_ease, reviewed_at")
+        .eq("user_id", userId)
+        .gte("reviewed_at", goalYearStart.toISOString())
+        .order("reviewed_at", { ascending: true }),
+      // 100-day reviewed_at stream for streak + heatmap + hourly histogram.
+      supabase
+        .from("review_logs")
+        .select("reviewed_at")
+        .eq("user_id", userId)
+        .gte("reviewed_at", ninetyAgo),
+    ]);
 
   const total = totalRes.count ?? 0;
-  const mastered = masteredRes.count ?? 0;
+  const allCards = (activeCardsRes.data ?? []) as {
+    id: string;
+    interval_days: number;
+    ease_factor: number;
+    repetitions: number;
+    difficulty: string | null;
+    next_review_at: string;
+    status: string;
+  }[];
+  // Derive subsets from the single cards fetch.
+  const activeRaw = allCards.filter((c) => c.status !== "suspended");
+  const mastered = activeRaw.filter(
+    (c) => c.interval_days >= MASTERED_THRESHOLD_DAYS
+  ).length;
   const masteredPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
-  const totalLogs = totalLogsRes.count ?? 0;
-  const dayIntrosCount = dayIntrosRes.count ?? 0;
-  const weekIntrosCount = weekIntrosRes.count ?? 0;
-  const quarterIntrosCount = quarterIntrosRes.count ?? 0;
-  const yearIntrosCount = yearIntrosRes.count ?? 0;
+
+  // Forecast window (30 days ahead).
+  const forecastCutoffMs = new Date(forecastUntil).getTime();
+  const forecastRaw = activeRaw.filter(
+    (c) => new Date(c.next_review_at).getTime() <= forecastCutoffMs
+  );
+
+  // All year-to-date logs, bucketed into the four goal windows.
+  const yearLogs = logsYearRes.data ?? [];
+  const totalLogs = yearLogs.length; // "all time" == year for this display
+  const dayStartMs = goalDayStart.getTime();
+  const weekStartMs = goalWeekStart.getTime();
+  const quarterStartMs = goalQuarterStart.getTime();
+  let dayIntrosCount = 0,
+    weekIntrosCount = 0,
+    quarterIntrosCount = 0,
+    yearIntrosCount = 0;
+  for (const l of yearLogs) {
+    const isIntro =
+      (l.prev_interval as number) === 0 && (l.prev_ease as number) === 2.5;
+    if (!isIntro) continue;
+    const t = new Date(l.reviewed_at as string).getTime();
+    yearIntrosCount++;
+    if (t >= quarterStartMs) quarterIntrosCount++;
+    if (t >= weekStartMs) weekIntrosCount++;
+    if (t >= dayStartMs) dayIntrosCount++;
+  }
+
+  // Logs within the 8-week retention window (for recentLogs consumers).
+  const retentionMs = new Date(retentionFrom).getTime();
+  const recentLogsData = yearLogs.filter(
+    (l) => new Date(l.reviewed_at as string).getTime() >= retentionMs
+  );
+  const recentLogs = { data: recentLogsData };
+  const forecastRes = { data: forecastRaw };
+  const activeRes = { data: activeRaw };
+  const streakLogs = logsStreakRes;
 
   // Year-end projection: year-to-date avg × remaining days in year + current.
   const yearEnd = new Date(

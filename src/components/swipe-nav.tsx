@@ -2,6 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { setPageTransitionDirection } from "./page-transition";
 
 // Order matches bottom-nav; swipe-left advances, swipe-right retreats.
 const TABS = ["/", "/review", "/cards", "/stats"] as const;
@@ -71,6 +72,7 @@ export function SwipeNav() {
           ? TABS[Math.min(TABS.length - 1, idx + 1)]
           : TABS[Math.max(0, idx - 1)];
       if (target && target !== pathname) {
+        setPageTransitionDirection(dx < 0 ? "left" : "right");
         router.push(target);
       }
     };

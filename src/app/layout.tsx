@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { BottomNav } from "@/components/bottom-nav";
 import { TodProvider } from "@/components/tod-provider";
 import { SwipeNav } from "@/components/swipe-nav";
+import { PageTransition } from "@/components/page-transition";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,7 +52,7 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <TodProvider />
           <SwipeNav />
-          {children}
+          <PageTransition>{children}</PageTransition>
           <BottomNav />
         </ThemeProvider>
       </body>
