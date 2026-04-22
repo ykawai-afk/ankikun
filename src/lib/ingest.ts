@@ -225,6 +225,116 @@ async function fetchArticleText(url: string): Promise<{
   return { text: clean, title };
 }
 
+export async function processTextIngest({
+  text,
+  sourceUrl,
+  title,
+  userId,
+}: {
+  text: string;
+  sourceUrl: string | null;
+  title: string | null;
+  userId: string;
+}): Promise<IngestResult> {
+  const trimmed = text.trim();
+  if (trimmed.length < 20) {
+    throw new Error(`テキストが短すぎます (${trimmed.length}文字)`);
+  }
+  const source = sourceUrl ?? "(pasted text)";
+
+  const supabase = createAdminClient();
+  const { data: ingestion, error: ingError } = await supabase
+    .from("ingestions")
+    .insert({
+      user_id: userId,
+      image_path: `text:${source}`,
+      status: "pending",
+    })
+    .select()
+    .single();
+  if (ingError || !ingestion) {
+    throw new Error(`ingestion record failed: ${ingError?.message}`);
+  }
+
+  try {
+    const anthropic = getAnthropicClient();
+    const payload = `以下のテキストから学習価値の高い英単語を抽出してカード化してください。
+
+${sourceUrl ? `出典URL: ${sourceUrl}\n` : ""}${title ? `タイトル: ${title}\n` : ""}--- 本文 ---
+${trimmed.slice(0, 18000)}`;
+
+    const result = await anthropic.messages.parse({
+      model: "claude-opus-4-7",
+      max_tokens: 16000,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: "user", content: payload }],
+      output_config: { format: zodOutputFormat(ExtractionSchema) },
+    });
+
+    const parsed = result.parsed_output;
+    if (!parsed)
+      throw new Error(
+        `structured output missing (stop_reason: ${result.stop_reason})`
+      );
+
+    const sourceContext = title
+      ? sourceUrl
+        ? `${title} — ${sourceUrl}`
+        : title
+      : sourceUrl ?? null;
+
+    const cardsToInsert = parsed.words.map((w) => ({
+      user_id: userId,
+      word: w.word,
+      reading: w.reading,
+      part_of_speech: w.part_of_speech,
+      definition_ja: w.definition_ja,
+      definition_en: w.definition_en,
+      example_en: w.example_en,
+      example_ja: w.example_ja,
+      etymology: w.etymology,
+      related_words: w.related_words.length > 0 ? w.related_words : null,
+      extra_examples: w.extra_examples.length > 0 ? w.extra_examples : null,
+      source_image_path: null,
+      source_context: sourceContext,
+    }));
+
+    if (cardsToInsert.length > 0) {
+      const { error: cardsError } = await supabase
+        .from("cards")
+        .insert(cardsToInsert);
+      if (cardsError) throw new Error(`cards insert failed: ${cardsError.message}`);
+    }
+
+    await supabase
+      .from("ingestions")
+      .update({
+        status: "processed",
+        raw_response: parsed as unknown as Record<string, unknown>,
+        cards_created: cardsToInsert.length,
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", ingestion.id);
+
+    return {
+      ingestion_id: ingestion.id,
+      cards_created: cardsToInsert.length,
+      words: parsed.words.map((w) => w.word),
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await supabase
+      .from("ingestions")
+      .update({
+        status: "failed",
+        error: message,
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", ingestion.id);
+    throw err;
+  }
+}
+
 export async function processUrlIngest({
   url,
   userId,

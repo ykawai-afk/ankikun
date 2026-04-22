@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { X } from "lucide-react";
+import { ArrowRight, Bookmark, X } from "lucide-react";
 import { PushToggle } from "./push-toggle";
 
 export function SettingsButton({ title }: { title: string }) {
@@ -59,6 +60,17 @@ export function SettingsButton({ title }: { title: string }) {
               <div className="px-4 pb-6 pt-2 flex flex-col gap-3">
                 <Section label="通知">
                   <PushToggle />
+                </Section>
+                <Section label="投入ツール">
+                  <Link
+                    href="/bookmarklet"
+                    onClick={() => setOpen(false)}
+                    className="rounded-xl bg-surface-2 px-3 py-2.5 flex items-center gap-2 active:scale-[0.99] transition hover:bg-surface-2/70"
+                  >
+                    <Bookmark size={13} className="text-accent" />
+                    <span className="text-[12px] flex-1">ブックマークレット</span>
+                    <ArrowRight size={12} className="text-muted" />
+                  </Link>
                 </Section>
               </div>
             </motion.div>
