@@ -101,20 +101,32 @@ async function keyOutBackground(filePath, targetSize) {
   }
 
   const bgOuter = medianColor(outerSamples);
-  const bgInner = medianColor(innerSamples);
+  // If the 4 corners are near-identical, the bg is a flat solid — tighten
+  // the flood fill so near-white character whites (beard, teeth, page
+  // highlights) aren't confused with white bg.  When the corners disagree
+  // we're on a painted-circle render: widen tolerance and bring in the
+  // inner-ring sample so the pastel medallion area gets keyed too.
+  const outerSpread = Math.max(
+    ...outerSamples.map((s) => distance(s, bgOuter))
+  );
+  const flatBg = outerSpread < 10;
 
-  // Flood-fill from every edge pixel. Only pixels close to one of the two
-  // bg colours get swept through; anything further (beard, skin, robe) acts
-  // as a wall and is preserved. This stops an interior pixel that happens
-  // to match pastel-purple in colour from being erased because the fill
-  // can only reach it through a continuous path of bg-coloured pixels.
-  // NEAR = full-transparent distance. FAR = wall-by-colour-distance.
-  // BRIGHT_WALL additionally protects near-white character pixels (beard,
-  // eyes, highlights) — the painted circle blends dim the ring pixels
-  // below this brightness so they still get through.
-  const NEAR = 30;
-  const FAR = 65;
-  const BRIGHT_WALL = 245;
+  let bgInner;
+  let NEAR, FAR;
+  if (flatBg) {
+    bgInner = bgOuter;
+    NEAR = 6;
+    FAR = 18;
+  } else {
+    bgInner = medianColor(innerSamples);
+    NEAR = 30;
+    FAR = 65;
+  }
+  // Near-white character highlights that must be preserved regardless of
+  // how close they sit to the bg colour. We only apply this on painted-
+  // circle bgs (purple gradient behind); on a flat white bg every
+  // character pixel is dim anyway so the guard would just let bg pass.
+  const BRIGHT_WALL = flatBg ? 999 : 245;
   const total = width * height;
   const isBgLike = (r, g, b) => {
     const dO = colorDistance(r, g, b, bgOuter.r, bgOuter.g, bgOuter.b);
