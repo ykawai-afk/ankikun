@@ -6,6 +6,7 @@ import {
   Flame,
   Keyboard,
   Sparkles,
+  Sprout,
 } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
@@ -24,6 +25,10 @@ const TYPING_MIN_COUNT = 5;
 const CONTEXT_MIN_INTERVAL = 2;
 const CONTEXT_MAX_INTERVAL = 20;
 const CONTEXT_MIN_COUNT = 5;
+// Root review surfaces once ≥10 cards have deep_dive data populated — the
+// actual group-count threshold (≥2 cards per root) is enforced on the
+// /review/root page so we don't need to compute groups on every home load.
+const ROOT_MIN_DEEP_DIVE = 10;
 
 export default async function Home() {
   const supabase = createAdminClient();
@@ -42,6 +47,7 @@ export default async function Home() {
     leechCount,
     typingPoolRes,
     contextPoolRes,
+    rootPoolRes,
   ] = await Promise.all([
     // Cards that have been touched at least once AND are due
     supabase
@@ -98,12 +104,19 @@ export default async function Home() {
       .not("example_en", "is", null)
       .gte("interval_days", CONTEXT_MIN_INTERVAL)
       .lte("interval_days", CONTEXT_MAX_INTERVAL),
+    supabase
+      .from("cards")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .neq("status", "suspended")
+      .not("deep_dive", "is", null),
   ]);
 
   const reviewDue = reviewDueRes.count ?? 0;
   const newAvailable = newAvailRes.count ?? 0;
   const typingPool = typingPoolRes.count ?? 0;
   const contextPool = contextPoolRes.count ?? 0;
+  const rootPool = rootPoolRes.count ?? 0;
   const total = totalRes.count ?? 0;
   const active = activeRes.count ?? 0;
   const mastered = masteredRes.count ?? 0;
@@ -272,6 +285,31 @@ export default async function Home() {
             <ArrowRight
               size={13}
               className="text-emerald-600/70 dark:text-emerald-400/70 group-hover:translate-x-0.5 transition"
+            />
+          </Link>
+        )}
+
+        {rootPool >= ROOT_MIN_DEEP_DIVE && (
+          <Link
+            href="/review/root"
+            className="group rounded-xl bg-violet-500/5 border border-violet-500/25 px-3.5 py-2.5 flex items-center gap-2 active:scale-[0.99] transition"
+          >
+            <Sprout
+              size={14}
+              className="text-violet-600 dark:text-violet-400 shrink-0"
+            />
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-[9px] uppercase tracking-widest text-violet-700 dark:text-violet-400 font-semibold">
+                語根で復習
+              </span>
+              <span className="text-[12px]">
+                <span className="font-semibold tabular-nums">{rootPool}</span>
+                <span className="text-muted"> 枚から語根グループ</span>
+              </span>
+            </div>
+            <ArrowRight
+              size={13}
+              className="text-violet-600/70 dark:text-violet-400/70 group-hover:translate-x-0.5 transition"
             />
           </Link>
         )}

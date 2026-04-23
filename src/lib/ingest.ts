@@ -4,6 +4,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import * as cheerio from "cheerio";
 import { getAnthropicClient } from "@/lib/anthropic";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { generateDeepDive } from "@/lib/deep-dive";
 
 export const ALLOWED_MEDIA_TYPES = [
   "image/png",
@@ -226,6 +227,31 @@ async function dedupeInsertsAgainstDeck<T extends { word: string }>(
   return { deduped, skipped };
 }
 
+// Generate and attach deep_dive for every freshly-inserted card in
+// parallel. Called right after the cards insert so new cards arrive with
+// root/cognate info ready for the root-review mode. Failures per card
+// are swallowed — deep_dive stays null for that card and the backfill
+// script picks it up later.
+async function attachDeepDivesToNewCards(
+  supabase: ReturnType<typeof createAdminClient>,
+  inserted: {
+    id: string;
+    word: string;
+    part_of_speech: string | null;
+    definition_ja: string;
+    etymology: string | null;
+  }[]
+): Promise<void> {
+  if (inserted.length === 0) return;
+  await Promise.allSettled(
+    inserted.map(async (c) => {
+      const dd = await generateDeepDive(c);
+      if (!dd) return;
+      await supabase.from("cards").update({ deep_dive: dd }).eq("id", c.id);
+    })
+  );
+}
+
 // Mutates the inserts array in place: replaces any frequency_rank=null on
 // words that have a CEFR (i.e. the primary model forgot the field) with a
 // Haiku-rescued band midpoint. Words with difficulty=null are assumed to be
@@ -345,8 +371,12 @@ export async function processIngest({
     );
     if (deduped.length > 0) {
       await rescueMissingFreqRanks(deduped);
-      const { error: cardsError } = await supabase.from("cards").insert(deduped);
+      const { data: inserted, error: cardsError } = await supabase
+        .from("cards")
+        .insert(deduped)
+        .select("id, word, part_of_speech, definition_ja, etymology");
       if (cardsError) throw new Error(`cards insert failed: ${cardsError.message}`);
+      await attachDeepDivesToNewCards(supabase, inserted ?? []);
     }
 
     await supabase
@@ -500,11 +530,13 @@ ${title ? `ページ: ${title}\n` : ""}${sourceUrl ? `URL: ${sourceUrl}\n` : ""}
         await dedupeInsertsAgainstDeck(supabase, userId, inserts);
       if (insertsDeduped.length > 0) {
         await rescueMissingFreqRanks(insertsDeduped);
-        const { error: cardsError } = await supabase
+        const { data: inserted, error: cardsError } = await supabase
           .from("cards")
-          .insert(insertsDeduped);
+          .insert(insertsDeduped)
+          .select("id, word, part_of_speech, definition_ja, etymology");
         if (cardsError)
           throw new Error(`cards insert failed: ${cardsError.message}`);
+        await attachDeepDivesToNewCards(supabase, inserted ?? []);
       }
       await supabase
         .from("ingestions")
@@ -569,10 +601,12 @@ ${trimmed.slice(0, 18000)}`;
     );
     if (deduped.length > 0) {
       await rescueMissingFreqRanks(deduped);
-      const { error: cardsError } = await supabase
+      const { data: inserted, error: cardsError } = await supabase
         .from("cards")
-        .insert(deduped);
+        .insert(deduped)
+        .select("id, word, part_of_speech, definition_ja, etymology");
       if (cardsError) throw new Error(`cards insert failed: ${cardsError.message}`);
+      await attachDeepDivesToNewCards(supabase, inserted ?? []);
     }
 
     await supabase
@@ -681,10 +715,12 @@ ${text}`,
     );
     if (deduped.length > 0) {
       await rescueMissingFreqRanks(deduped);
-      const { error: cardsError } = await supabase
+      const { data: inserted, error: cardsError } = await supabase
         .from("cards")
-        .insert(deduped);
+        .insert(deduped)
+        .select("id, word, part_of_speech, definition_ja, etymology");
       if (cardsError) throw new Error(`cards insert failed: ${cardsError.message}`);
+      await attachDeepDivesToNewCards(supabase, inserted ?? []);
     }
 
     await supabase
