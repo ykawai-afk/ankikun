@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
+  BookOpen,
   Flame,
   Keyboard,
   Sparkles,
@@ -18,6 +19,11 @@ import { MASTERED_THRESHOLD_DAYS } from "@/lib/mastery";
 export const dynamic = "force-dynamic";
 const TYPING_MIN_INTERVAL = 14;
 const TYPING_MIN_COUNT = 5;
+// Context review surfaces when there are enough consolidation-phase cards
+// (interval 2-20d) — matches the fetch range in /review/context.
+const CONTEXT_MIN_INTERVAL = 2;
+const CONTEXT_MAX_INTERVAL = 20;
+const CONTEXT_MIN_COUNT = 5;
 
 export default async function Home() {
   const supabase = createAdminClient();
@@ -35,6 +41,7 @@ export default async function Home() {
     newIntrosToday,
     leechCount,
     typingPoolRes,
+    contextPoolRes,
   ] = await Promise.all([
     // Cards that have been touched at least once AND are due
     supabase
@@ -83,11 +90,20 @@ export default async function Home() {
       .eq("user_id", userId)
       .neq("status", "suspended")
       .gte("interval_days", TYPING_MIN_INTERVAL),
+    supabase
+      .from("cards")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .neq("status", "suspended")
+      .not("example_en", "is", null)
+      .gte("interval_days", CONTEXT_MIN_INTERVAL)
+      .lte("interval_days", CONTEXT_MAX_INTERVAL),
   ]);
 
   const reviewDue = reviewDueRes.count ?? 0;
   const newAvailable = newAvailRes.count ?? 0;
   const typingPool = typingPoolRes.count ?? 0;
+  const contextPool = contextPoolRes.count ?? 0;
   const total = totalRes.count ?? 0;
   const active = activeRes.count ?? 0;
   const mastered = masteredRes.count ?? 0;
@@ -231,6 +247,31 @@ export default async function Home() {
             <ArrowRight
               size={13}
               className="text-accent/70 group-hover:translate-x-0.5 transition"
+            />
+          </Link>
+        )}
+
+        {contextPool >= CONTEXT_MIN_COUNT && (
+          <Link
+            href="/review/context"
+            className="group rounded-xl bg-emerald-500/5 border border-emerald-500/25 px-3.5 py-2.5 flex items-center gap-2 active:scale-[0.99] transition"
+          >
+            <BookOpen
+              size={14}
+              className="text-emerald-600 dark:text-emerald-400 shrink-0"
+            />
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-[9px] uppercase tracking-widest text-emerald-700 dark:text-emerald-400 font-semibold">
+                文脈から復習
+              </span>
+              <span className="text-[12px]">
+                <span className="font-semibold tabular-nums">{contextPool}</span>
+                <span className="text-muted"> 枚を空欄で思い出す</span>
+              </span>
+            </div>
+            <ArrowRight
+              size={13}
+              className="text-emerald-600/70 dark:text-emerald-400/70 group-hover:translate-x-0.5 transition"
             />
           </Link>
         )}
