@@ -4,13 +4,27 @@ import { revalidatePath, updateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
 import { schedule } from "@/lib/srs";
-import type { Card, Rating } from "@/lib/types";
+import type { Card, Rating, ReviewFormat } from "@/lib/types";
 import { CACHE_TAGS } from "@/lib/cache";
 import { isIntroLog } from "@/lib/mastery";
 
+// Cloze and typing formats both require active retrieval (context recall
+// or production), so a successful grading there is SRS-stronger than the
+// same button press on a front/back card. Bump one tier for non-Again
+// ratings; misses always stay Again regardless of format.
+function applyFormatBump(rating: Rating, format: ReviewFormat): Rating {
+  if (rating === 0) return 0;
+  if (format === "normal") return rating;
+  return Math.min(3, rating + 1) as Rating;
+}
+
 // Best-effort background grade. The client optimistically advances its queue
 // and this updates the DB without forcing a re-render.
-export async function grade(cardId: string, rating: Rating) {
+export async function grade(
+  cardId: string,
+  rating: Rating,
+  format: ReviewFormat = "normal"
+) {
   const supabase = createAdminClient();
   const userId = getUserId();
 
@@ -22,21 +36,24 @@ export async function grade(cardId: string, rating: Rating) {
     .single<Card>();
   if (error || !card) throw new Error("card not found");
 
+  const effectiveRating = applyFormatBump(rating, format);
   const next = schedule(
     {
       ease_factor: card.ease_factor,
       interval_days: card.interval_days,
       repetitions: card.repetitions,
     },
-    rating
+    effectiveRating
   );
 
   // Intro-Easy shortcut: if this grading is the card's very first rating
-  // (interval 0, ease still at 2.5) AND the user rated Easy, stamp
-  // was_intro_easy=true so the mastery check can count it immediately.
+  // (interval 0, ease still at 2.5) AND the effective rating resolves to
+  // Easy, stamp was_intro_easy=true so the mastery check can count it
+  // immediately. Uses effective_rating so a cloze/typing Good (bumped to
+  // Easy) on a brand-new card still qualifies.
   const introEasy =
     isIntroLog({ prev_interval: card.interval_days, prev_ease: card.ease_factor }) &&
-    rating === 3;
+    effectiveRating === 3;
 
   const { error: updateErr } = await supabase
     .from("cards")
@@ -55,13 +72,14 @@ export async function grade(cardId: string, rating: Rating) {
   await supabase.from("review_logs").insert({
     card_id: card.id,
     user_id: userId,
-    rating,
+    rating: effectiveRating,
     prev_interval: card.interval_days,
     new_interval: next.interval_days,
     prev_ease: card.ease_factor,
     new_ease: next.ease_factor,
     prev_repetitions: card.repetitions,
     prev_status: card.status,
+    format,
   });
 
   revalidatePath("/");

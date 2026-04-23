@@ -66,6 +66,11 @@ export type Card = {
 
 export type Rating = 0 | 1 | 2 | 3; // Again | Hard | Good | Easy
 
+// Source format the user was reviewing in when the rating was produced.
+// Drives the format-aware bump in grade(): cloze/typing successful
+// recalls are one SRS tier stronger than front/back recognition.
+export type ReviewFormat = "normal" | "cloze" | "typing";
+
 export type ReviewLog = {
   id: string;
   card_id: string;
@@ -75,6 +80,7 @@ export type ReviewLog = {
   new_interval: number;
   prev_ease: number;
   new_ease: number;
+  format: ReviewFormat | null;
   reviewed_at: string;
 };
 

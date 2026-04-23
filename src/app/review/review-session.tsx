@@ -28,6 +28,7 @@ import type {
   ExtraExample,
   Rating,
   RelatedWord,
+  ReviewFormat,
 } from "@/lib/types";
 import { haptic } from "@/lib/haptics";
 import { isTypingMatch } from "@/lib/typing";
@@ -240,14 +241,19 @@ export function ReviewSession({
         });
       }
 
+      const format: ReviewFormat = isTypingCard
+        ? "typing"
+        : cloze
+          ? "cloze"
+          : "normal";
       setTimeout(() => {
-        const p = grade(cardId, r).catch((e) => {
+        const p = grade(cardId, r, format).catch((e) => {
           console.error("grade failed", e);
         });
         if (willFinish) p.finally(() => router.refresh());
       }, 0);
     },
-    [card, queue.length, revealed, router, fetchSimilar]
+    [card, queue.length, revealed, router, fetchSimilar, isTypingCard, cloze]
   );
 
   const speak = useCallback((text: string) => {
