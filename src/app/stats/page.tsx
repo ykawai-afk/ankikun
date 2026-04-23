@@ -286,17 +286,13 @@ export default async function StatsPage() {
     }
   }
 
-  // Per-CEFR contribution is signed: accuracy 100% → +full, 50% → 0,
-  // 0% → -full. Lets cards the user keeps missing actively pull the total
-  // down instead of merely adding less. Undersampled levels (< MIN reviews)
-  // still default to +1 via cefrAccuracy so early learners aren't penalised
-  // on speculation.
+  // Mastered cards (interval ≥ 21d) have already proven retention via SM-2,
+  // so they contribute at full weight regardless of recent accuracy — a card
+  // the algorithm believes you know should count as known. Accuracy only
+  // affects the baseline (below), not cards you've already earned.
   const vocabCardContribution = Object.entries(masteredCefrCounts).reduce(
-    (sum, [level, count]) => {
-      const acc = cefrAccuracy[level] ?? 1;
-      const signed = 2 * acc - 1;
-      return sum + count * (VOCAB_CARD_WEIGHT[level] ?? 0) * signed;
-    },
+    (sum, [level, count]) =>
+      sum + count * (VOCAB_CARD_WEIGHT[level] ?? 0),
     0
   );
   // Baseline haircut when overall retention is weak. Maps 100% retention →
