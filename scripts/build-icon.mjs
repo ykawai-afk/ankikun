@@ -15,12 +15,16 @@ const ROOT = path.join(
   path.dirname(new URL(import.meta.url).pathname),
   ".."
 );
-const HERO_FILE = path.join(
-  ROOT,
-  "public",
-  "levels",
-  "shakespearean-savant.png"
-);
+// Icon-specific hero: same character as shakespearean-savant but rendered
+// with a clean white background so chroma key separates robe purple from
+// bg reliably. Falls back to the stats-deck avatar if the icon-only PNG
+// hasn't been generated yet.
+const HERO_CANDIDATES = [
+  path.join(ROOT, "public", "icon-hero.png"),
+  path.join(ROOT, "public", "levels", "shakespearean-savant.png"),
+];
+const HERO_FILE =
+  HERO_CANDIDATES.find((p) => fs.existsSync(p)) ?? HERO_CANDIDATES[0];
 const OUT_ICON = path.join(ROOT, "src", "app", "icon.png");
 const OUT_APPLE = path.join(ROOT, "src", "app", "apple-icon.png");
 
