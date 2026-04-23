@@ -28,6 +28,28 @@ const ExtraExampleSchema = z.object({
 
 const CEFRSchema = z.enum(["A1", "A2", "B1", "B2", "C1", "C2"]).nullable();
 
+// Canonical 9-band frequency ladder. Claude must pick one of these exact
+// midpoint values or null (for proper nouns / acronyms / technical jargon).
+// The numeric integers are what gets stored in cards.frequency_rank.
+export const FREQ_BAND_MIDPOINTS = [
+  250, 750, 2000, 4000, 6500, 10000, 15000, 28000, 50000,
+] as const;
+export type FreqBandMidpoint = (typeof FREQ_BAND_MIDPOINTS)[number];
+
+const FrequencyRankSchema = z
+  .union([
+    z.literal(250),
+    z.literal(750),
+    z.literal(2000),
+    z.literal(4000),
+    z.literal(6500),
+    z.literal(10000),
+    z.literal(15000),
+    z.literal(28000),
+    z.literal(50000),
+  ])
+  .nullable();
+
 const WordSchema = z.object({
   word: z.string(),
   reading: z.string().nullable(),
@@ -38,6 +60,7 @@ const WordSchema = z.object({
   example_ja: z.string().nullable(),
   etymology: z.string().nullable(),
   difficulty: CEFRSchema,
+  frequency_rank: FrequencyRankSchema,
   related_words: z.array(RelatedWordSchema),
   extra_examples: z.array(ExtraExampleSchema),
 });
@@ -70,6 +93,17 @@ const SINGLE_WORD_PROMPT = `あなたは日本人英語学習者向け単語カ�
 - example_ja: example_enの自然な日本語訳
 - etymology: 語源 (不明なら null)
 - difficulty: CEFRレベル判定。"A1"(500語)/"A2"(1000語)/"B1"(2500語)/"B2"(4000語)/"C1"(8000語)/"C2"(15000+語)。基本〜中学語彙はA1-A2、高校〜TOEIC700はB1-B2、英検1級〜TOEIC900はC1、学術・希少語はC2。不確実ならnull
+- frequency_rank: COCA英語頻度ランクの概算。以下の9バンドから**必ずいずれかの整数値**を選ぶ。固有名詞・頭字語・技術固有語のみ null:
+  250   → 1–500位  (最頻出)      "the, and, go, make, say"
+  750   → 501–1500位              "however, decide, mention, likely"
+  2000  → 1501–3000位             "assume, consequence, rely, significant"
+  4000  → 3001–5000位             "undermine, diligent, consolidate, implicit"
+  6500  → 5001–8000位             "mitigate, stipulate, articulate, elusive"
+  10000 → 8001–12000位            "elucidate, cogent, proliferate, ostensible"
+  15000 → 12001–20000位           "obfuscate, nebulous, sanguine, recalcitrant"
+  28000 → 20001–40000位           "sesquipedalian, ineffable, quixotic"
+  50000 → 40001+位 (古語・高度学術) "antediluvian, obstreperous, defenestrate"
+  CEFRと整合するはず (A1/A2→250-750, B1→2000, B2→4000-6500, C1→6500-10000, C2→15000+)。フレーズは主要語で判定
 - related_words: word family を2-4個
 - extra_examples: 文脈別に2-3個。register を多様化 (formal=会社員メール, conversational=カジュアル, idiom=実用的慣用句)`;
 
@@ -94,6 +128,12 @@ const SYSTEM_PROMPT = `あなたは日本人英語学習者向け単語カード
 - example_ja: example_enの自然な日本語訳
 - etymology: 語源（Latin/Greek/Old English/Old French等の起源、意味のある接頭辞・語根・接尾辞、関連語を1-2文で。例: "Latin 'elusus' (past participle of 'eludere': e-「外へ」+ ludere「遊ぶ」)。to avoid/escapeのイメージ"）。不明なら null
 - difficulty: CEFRレベル判定。A1(500語圏)/A2(1000語)/B1(2500語)/B2(4000語)/C1(8000語)/C2(15000+語)。中学基礎=A1-A2、高校〜TOEIC700=B1-B2、英検1級〜TOEIC900=C1、学術・希少語=C2。不確実ならnull
+- frequency_rank: COCA英語頻度ランクの概算。以下の9バンドから**必ずいずれかの整数値**を選ぶ。固有名詞・頭字語・技術固有語のみ null:
+  250=1–500位 "the/go/make", 750=501–1500位 "however/decide", 2000=1501–3000位 "assume/rely",
+  4000=3001–5000位 "undermine/diligent", 6500=5001–8000位 "mitigate/elusive",
+  10000=8001–12000位 "cogent/proliferate", 15000=12001–20000位 "nebulous/sanguine",
+  28000=20001–40000位 "quixotic/ineffable", 50000=40001+位 "antediluvian/obstreperous"
+  CEFRと整合 (A1/A2→250-750, B1→2000, B2→4000-6500, C1→6500-10000, C2→15000+)
 - related_words: word family (同語根の派生語) を2-4個。例: elusive → [{word:"elude", part_of_speech:"verb", meaning_ja:"巧みに避ける"}, ...]。なければ空配列[]
 - extra_examples: 例文を文脈別に2-3個追加。**日常で実際にあり得るシーン**(職場メール・Slack・友人との会話・家族・旅行・ショッピング・ニュース等) から register を多様化:
   - "formal" = 職場メール/会議/ビジネス文書 (法律文書や学術論文ではなく、普通の会社員が書くレベル)
@@ -101,6 +141,63 @@ const SYSTEM_PROMPT = `あなたは日本人英語学習者向け単語カード
   - "idiom" = 実際の会話で使われる慣用表現
   判定不能ならnull。なければ空配列[]。文学調/哲学調/抽象的な不自然例文は禁止。
 - source_context: スクショの文脈(1文、なくてよければnull)`;
+
+// Haiku-based rescue for frequency_rank. Called only for words whose primary
+// pass returned rank=null despite having a CEFR — i.e. the primary model
+// forgot the field rather than legitimately marking it as a proper noun.
+// Haiku can't skip: we force it to pick a band. Absolute-last-resort nulls
+// (schema violation or upstream error) propagate; the nightly backfill
+// script will mop them up.
+const FreqRescueSchema = z.object({ frequency_rank: FrequencyRankSchema });
+const FREQ_RESCUE_SYSTEM = `あなたは英単語のCOCA頻度ランク推定器。
+以下の9バンドのうち最も近い整数を1つだけ返す。固有名詞・頭字語・技術固有語のみnull:
+250=1–500位 "the/go", 750=501–1500位 "however/decide", 2000=1501–3000位 "assume/rely",
+4000=3001–5000位 "undermine/diligent", 6500=5001–8000位 "mitigate/elusive",
+10000=8001–12000位 "cogent", 15000=12001–20000位 "nebulous", 28000=20001–40000位 "quixotic",
+50000=40001+位 "antediluvian"`;
+
+async function rescueFrequencyRank(
+  word: string,
+  cefrHint: string | null
+): Promise<FreqBandMidpoint | null> {
+  try {
+    const anthropic = getAnthropicClient();
+    const result = await anthropic.messages.parse({
+      model: "claude-haiku-4-5",
+      max_tokens: 200,
+      system: FREQ_RESCUE_SYSTEM,
+      messages: [
+        {
+          role: "user",
+          content: `語: "${word}"${cefrHint ? ` (CEFR: ${cefrHint})` : ""}`,
+        },
+      ],
+      output_config: { format: zodOutputFormat(FreqRescueSchema) },
+    });
+    return result.parsed_output?.frequency_rank ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Mutates the inserts array in place: replaces any frequency_rank=null on
+// words that have a CEFR (i.e. the primary model forgot the field) with a
+// Haiku-rescued band midpoint. Words with difficulty=null are assumed to be
+// legitimate nulls (proper nouns, acronyms) and skipped.
+async function rescueMissingFreqRanks<
+  T extends { word: string; difficulty: string | null; frequency_rank: number | null }
+>(inserts: T[]): Promise<void> {
+  const targets = inserts.filter(
+    (c) => c.difficulty !== null && c.frequency_rank === null
+  );
+  if (targets.length === 0) return;
+  const rescued = await Promise.all(
+    targets.map((c) => rescueFrequencyRank(c.word, c.difficulty))
+  );
+  targets.forEach((c, i) => {
+    c.frequency_rank = rescued[i];
+  });
+}
 
 export function pickMediaType(input: string): AllowedMediaType {
   const normalized = input.toLowerCase();
@@ -187,6 +284,7 @@ export async function processIngest({
       example_ja: w.example_ja,
       etymology: w.etymology,
       difficulty: w.difficulty,
+      frequency_rank: w.frequency_rank,
       related_words: w.related_words.length > 0 ? w.related_words : null,
       extra_examples: w.extra_examples.length > 0 ? w.extra_examples : null,
       source_image_path: imagePath,
@@ -194,6 +292,7 @@ export async function processIngest({
     }));
 
     if (cardsToInsert.length > 0) {
+      await rescueMissingFreqRanks(cardsToInsert);
       const { error: cardsError } = await supabase.from("cards").insert(cardsToInsert);
       if (cardsError) throw new Error(`cards insert failed: ${cardsError.message}`);
     }
@@ -334,7 +433,8 @@ ${title ? `ページ: ${title}\n` : ""}${sourceUrl ? `URL: ${sourceUrl}\n` : ""}
               example_en: w.example_en,
               example_ja: w.example_ja,
               etymology: w.etymology,
-      difficulty: w.difficulty,
+              difficulty: w.difficulty,
+              frequency_rank: w.frequency_rank,
               related_words:
                 w.related_words.length > 0 ? w.related_words : null,
               extra_examples:
@@ -344,6 +444,7 @@ ${title ? `ページ: ${title}\n` : ""}${sourceUrl ? `URL: ${sourceUrl}\n` : ""}
             },
           ];
       if (inserts.length > 0) {
+        await rescueMissingFreqRanks(inserts);
         const { error: cardsError } = await supabase
           .from("cards")
           .insert(inserts);
@@ -398,6 +499,7 @@ ${trimmed.slice(0, 18000)}`;
       example_ja: w.example_ja,
       etymology: w.etymology,
       difficulty: w.difficulty,
+      frequency_rank: w.frequency_rank,
       related_words: w.related_words.length > 0 ? w.related_words : null,
       extra_examples: w.extra_examples.length > 0 ? w.extra_examples : null,
       source_image_path: null,
@@ -405,6 +507,7 @@ ${trimmed.slice(0, 18000)}`;
     }));
 
     if (cardsToInsert.length > 0) {
+      await rescueMissingFreqRanks(cardsToInsert);
       const { error: cardsError } = await supabase
         .from("cards")
         .insert(cardsToInsert);
@@ -502,6 +605,7 @@ ${text}`,
       example_ja: w.example_ja,
       etymology: w.etymology,
       difficulty: w.difficulty,
+      frequency_rank: w.frequency_rank,
       related_words: w.related_words.length > 0 ? w.related_words : null,
       extra_examples: w.extra_examples.length > 0 ? w.extra_examples : null,
       source_image_path: null,
@@ -509,6 +613,7 @@ ${text}`,
     }));
 
     if (cardsToInsert.length > 0) {
+      await rescueMissingFreqRanks(cardsToInsert);
       const { error: cardsError } = await supabase
         .from("cards")
         .insert(cardsToInsert);

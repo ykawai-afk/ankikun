@@ -10,8 +10,6 @@ import {
   WEEKLY_NEW_TARGET,
   QUARTERLY_NEW_TARGET,
   YEARLY_NEW_TARGET,
-  VOCAB_BASELINE,
-  VOCAB_CARD_WEIGHT,
   VOCAB_MILESTONES,
   vocabCurrentLevel,
   jstStartOfDay,
@@ -20,6 +18,7 @@ import {
   jstStartOfYear,
 } from "@/lib/goals";
 import { isMastered, isIntroLog } from "@/lib/mastery";
+import { computeVocabEstimate } from "@/lib/vocab";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +75,7 @@ const getStatsSnapshot = unstable_cache(
         supabase
           .from("cards")
           .select(
-            "id, interval_days, ease_factor, repetitions, difficulty, next_review_at, status"
+            "id, interval_days, ease_factor, repetitions, difficulty, frequency_rank, next_review_at, status"
           )
           .eq("user_id", userId),
         supabase
@@ -135,6 +134,7 @@ export default async function StatsPage() {
     ease_factor: number;
     repetitions: number;
     difficulty: string | null;
+    frequency_rank: number | null;
     next_review_at: string;
     status: string;
   }[];
@@ -237,6 +237,7 @@ export default async function StatsPage() {
     ease_factor: number;
     repetitions: number;
     difficulty: string | null;
+    frequency_rank: number | null;
   }[];
 
   // === CEFR distribution + vocabulary estimate ===
@@ -286,42 +287,17 @@ export default async function StatsPage() {
     }
   }
 
-  // Mastered cards (interval ≥ 21d) have already proven retention via SM-2,
-  // so they contribute at full weight regardless of recent accuracy — a card
-  // the algorithm believes you know should count as known. Accuracy only
-  // affects the baseline (below), not cards you've already earned.
-  const vocabCardContribution = Object.entries(masteredCefrCounts).reduce(
-    (sum, [level, count]) =>
-      sum + count * (VOCAB_CARD_WEIGHT[level] ?? 0),
-    0
-  );
-  // Baseline haircut when overall retention slips below healthy (80%).
-  // Above 80% → no haircut (you're doing fine). Below 80% → ramp linearly
-  // down to a 0.85 floor at 0% retention, so the baseline never drops past
-  // 6800. The earlier 0.5 floor was over-punishing a natural bad-week dip.
-  let totalReviews = 0;
-  let totalNonAgain = 0;
-  for (const lv of [...cefrOrder, "unknown"] as const) {
-    totalReviews += cefrReviewTotals[lv] ?? 0;
-    totalNonAgain += cefrNonAgain[lv] ?? 0;
-  }
-  const overallRetention =
-    totalReviews >= MIN_REVIEWS_FOR_ACC ? totalNonAgain / totalReviews : 1;
-  const HEALTHY_RETENTION = 0.8;
-  const HAIRCUT_FLOOR = 0.85;
-  const baselineHealth =
-    overallRetention >= HEALTHY_RETENTION
-      ? 1
-      : HAIRCUT_FLOOR +
-        (1 - HAIRCUT_FLOOR) * (overallRetention / HEALTHY_RETENTION);
-  const adjustedBaseline = VOCAB_BASELINE * baselineHealth;
+  // Frequency-rank coverage model (see src/lib/vocab.ts). Each mastered
+  // card's frequency_rank lands in a band; per-band vocab = min(band_size,
+  // band_size × prior + mastered_in_band). Sum across bands.
+  const masteredRankedCards = active
+    .filter(isMastered)
+    .map((c) => ({ frequency_rank: c.frequency_rank }));
+  const vocabResult = computeVocabEstimate(masteredRankedCards);
+  const vocabEstimate = vocabResult.total;
   const masteredCount = Object.values(masteredCefrCounts).reduce(
     (a, b) => a + b,
     0
-  );
-  const vocabEstimate = Math.max(
-    0,
-    Math.round(adjustedBaseline + vocabCardContribution)
   );
   const currentLevel = vocabCurrentLevel(vocabEstimate);
   const nextLevel = VOCAB_MILESTONES.find((m) => m.value > vocabEstimate);

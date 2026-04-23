@@ -47,6 +47,7 @@ export type Card = {
   user_note: string | null;
   audio_url: string | null;
   difficulty: CEFRLevel | null;
+  frequency_rank: number | null;
   image_url: string | null;
   related_words: RelatedWord[] | null;
   extra_examples: ExtraExample[] | null;

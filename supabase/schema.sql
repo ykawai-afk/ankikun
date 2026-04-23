@@ -25,6 +25,8 @@ create table if not exists public.cards (
   audio_url text,
   difficulty text
     check (difficulty in ('A1','A2','B1','B2','C1','C2')),
+  frequency_rank integer
+    check (frequency_rank is null or (frequency_rank > 0 and frequency_rank <= 60000)),
 
   -- SM-2 state
   ease_factor real not null default 2.5,
@@ -45,6 +47,9 @@ create index if not exists cards_user_next_review_idx
 
 create index if not exists cards_user_word_idx
   on public.cards(user_id, word);
+
+create index if not exists cards_frequency_rank_idx
+  on public.cards(user_id, frequency_rank);
 
 -- =========================
 -- review_logs: 回答履歴
