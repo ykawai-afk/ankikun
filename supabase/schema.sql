@@ -52,6 +52,25 @@ create index if not exists cards_user_next_review_idx
 create index if not exists cards_user_word_idx
   on public.cards(user_id, word);
 
+-- user-scoped retention UX state (streak freeze balance, etc.)
+create table if not exists public.user_state (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  streak_freezes_available integer not null default 1
+    check (streak_freezes_available >= 0),
+  last_freeze_refill_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.frozen_days (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  day date not null,
+  frozen_at timestamptz not null default now(),
+  primary key (user_id, day)
+);
+
+create index if not exists frozen_days_user_idx
+  on public.frozen_days(user_id, day);
+
 create unique index if not exists cards_user_word_unique_idx
   on public.cards(user_id, lower(word));
 

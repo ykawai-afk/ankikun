@@ -16,9 +16,17 @@ function addDays(ymd: string, delta: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-export function computeStreak(reviewedAtIsoStrings: string[]): number {
-  if (reviewedAtIsoStrings.length === 0) return 0;
-  const days = new Set(reviewedAtIsoStrings.map((iso) => ymdInTokyo(new Date(iso))));
+export function computeStreak(
+  reviewedAtIsoStrings: string[],
+  frozenYmdDays: string[] = []
+): number {
+  if (reviewedAtIsoStrings.length === 0 && frozenYmdDays.length === 0) return 0;
+  // Frozen days count as covered — the user spent a freeze to paper
+  // over the gap, so the streak walks right through them.
+  const days = new Set<string>([
+    ...reviewedAtIsoStrings.map((iso) => ymdInTokyo(new Date(iso))),
+    ...frozenYmdDays,
+  ]);
   let streak = 0;
   const today = ymdInTokyo(new Date());
   let cursor = days.has(today) ? today : addDays(today, -1);

@@ -5,6 +5,7 @@ import {
   BookOpen,
   Flame,
   Keyboard,
+  Snowflake,
   Sparkles,
   Sprout,
 } from "lucide-react";
@@ -16,6 +17,8 @@ import { computeStreak, reviewedTodayCount, countsByDay } from "@/lib/streak";
 import { getLeechCount } from "@/lib/leech";
 import { DAILY_NEW_TARGET, countNewIntrosSince } from "@/lib/goals";
 import { MASTERED_THRESHOLD_DAYS } from "@/lib/mastery";
+import { loadUserStateWithRefill, loadFrozenDays } from "@/lib/streak-freeze";
+import { FreezeStreakButton } from "@/components/freeze-streak-button";
 
 export const dynamic = "force-dynamic";
 const TYPING_MIN_INTERVAL = 14;
@@ -36,6 +39,8 @@ export default async function Home() {
   const now = new Date().toISOString();
   const ninetyDaysAgo = new Date(Date.now() - 100 * 86_400_000).toISOString();
 
+  const next24hIso = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
   const [
     reviewDueRes,
     newAvailRes,
@@ -48,6 +53,9 @@ export default async function Home() {
     typingPoolRes,
     contextPoolRes,
     rootPoolRes,
+    tomorrowAddsRes,
+    userState,
+    frozenDays,
   ] = await Promise.all([
     // Cards that have been touched at least once AND are due
     supabase
@@ -110,6 +118,18 @@ export default async function Home() {
       .eq("user_id", userId)
       .neq("status", "suspended")
       .not("deep_dive", "is", null),
+    // Cards that aren't overdue yet but will be within 24h. Loss-framed
+    // widget on home nudges "yesterday it was N, today it'll be N+M" —
+    // the delta is what gets added to the queue if today is skipped.
+    supabase
+      .from("cards")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .in("status", ["learning", "review"])
+      .gt("next_review_at", now)
+      .lte("next_review_at", next24hIso),
+    loadUserStateWithRefill(userId),
+    loadFrozenDays(userId),
   ]);
 
   const reviewDue = reviewDueRes.count ?? 0;
@@ -122,9 +142,30 @@ export default async function Home() {
   const mastered = masteredRes.count ?? 0;
   const masteredPct = active > 0 ? Math.round((mastered / active) * 100) : 0;
   const reviewedAts = (logsRes.data ?? []).map((r) => r.reviewed_at as string);
-  const streak = computeStreak(reviewedAts);
+  const streak = computeStreak(reviewedAts, frozenDays);
   const todayCount = reviewedTodayCount(reviewedAts);
   const heatmap = countsByDay(reviewedAts);
+  const tomorrowAdds = tomorrowAddsRes.count ?? 0;
+
+  // Streak freeze UX: offer redeeming a freeze for yesterday only if the
+  // user has unbroken streak continuity up to the day before yesterday
+  // (i.e., one-day gap). Multiple-day gaps aren't rescuable with one
+  // freeze anyway.
+  const tz = "Asia/Tokyo";
+  const ymd = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: tz });
+  const todayYmd = ymd(new Date());
+  const yesterdayYmd = ymd(new Date(Date.now() - 86_400_000));
+  const reviewedOrFrozenDaySet = new Set<string>([
+    ...reviewedAts.map((iso) => ymd(new Date(iso))),
+    ...frozenDays,
+  ]);
+  const yesterdayMissed = !reviewedOrFrozenDaySet.has(yesterdayYmd);
+  const dayBeforeYesterdayYmd = ymd(new Date(Date.now() - 2 * 86_400_000));
+  const offerFreeze =
+    yesterdayMissed &&
+    reviewedOrFrozenDaySet.has(dayBeforeYesterdayYmd) &&
+    userState.streak_freezes_available > 0 &&
+    !reviewedOrFrozenDaySet.has(todayYmd);
 
   const newRemainingToday = Math.max(
     0,
@@ -142,10 +183,27 @@ export default async function Home() {
         {/* Streak */}
         <section className="flex items-center gap-2">
           <StreakBadge days={streak} />
-          <span className="text-[10px] uppercase tracking-widest text-muted">
-            Today · 完了 {todayCount}
-          </span>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] uppercase tracking-widest text-muted">
+              Today · 完了 {todayCount}
+            </span>
+            <span className="text-[10px] text-muted inline-flex items-center gap-1">
+              <Snowflake
+                size={10}
+                className={
+                  userState.streak_freezes_available > 0
+                    ? "text-sky-500"
+                    : "text-muted/40"
+                }
+              />
+              凍結ストック {userState.streak_freezes_available}
+            </span>
+          </div>
         </section>
+
+        {offerFreeze && (
+          <FreezeStreakButton day={yesterdayYmd} />
+        )}
 
         {/* Today panel: new quota + due review */}
         <section className="flex flex-col gap-2.5">
@@ -208,6 +266,18 @@ export default async function Home() {
                 />
               </div>
             </div>
+            {/* Forgetting meter: loss-framed preview of tomorrow's load
+                if today is skipped. Only shown when there's something
+                to lose — silent when no cards due soon. */}
+            {tomorrowAdds > 0 && (
+              <div className="text-[10px] text-muted leading-relaxed">
+                今日サボると明日{" "}
+                <span className="font-semibold text-flame tabular-nums">
+                  +{tomorrowAdds}枚
+                </span>{" "}
+                が期限切れに
+              </div>
+            )}
           </Link>
         </section>
 
