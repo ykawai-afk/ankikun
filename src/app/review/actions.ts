@@ -6,6 +6,7 @@ import { getUserId } from "@/lib/user";
 import { schedule } from "@/lib/srs";
 import type { Card, Rating } from "@/lib/types";
 import { CACHE_TAGS } from "@/lib/cache";
+import { isIntroLog } from "@/lib/mastery";
 
 // Best-effort background grade. The client optimistically advances its queue
 // and this updates the DB without forcing a re-render.
@@ -30,6 +31,13 @@ export async function grade(cardId: string, rating: Rating) {
     rating
   );
 
+  // Intro-Easy shortcut: if this grading is the card's very first rating
+  // (interval 0, ease still at 2.5) AND the user rated Easy, stamp
+  // was_intro_easy=true so the mastery check can count it immediately.
+  const introEasy =
+    isIntroLog({ prev_interval: card.interval_days, prev_ease: card.ease_factor }) &&
+    rating === 3;
+
   const { error: updateErr } = await supabase
     .from("cards")
     .update({
@@ -39,6 +47,7 @@ export async function grade(cardId: string, rating: Rating) {
       next_review_at: next.next_review_at,
       last_reviewed_at: next.last_reviewed_at,
       status: next.status,
+      ...(introEasy ? { was_intro_easy: true } : {}),
     })
     .eq("id", cardId);
   if (updateErr) throw updateErr;

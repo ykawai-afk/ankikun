@@ -75,7 +75,7 @@ const getStatsSnapshot = unstable_cache(
         supabase
           .from("cards")
           .select(
-            "id, interval_days, ease_factor, repetitions, difficulty, frequency_rank, next_review_at, status"
+            "id, interval_days, ease_factor, repetitions, difficulty, frequency_rank, was_intro_easy, next_review_at, status"
           )
           .eq("user_id", userId),
         supabase
@@ -135,6 +135,7 @@ export default async function StatsPage() {
     repetitions: number;
     difficulty: string | null;
     frequency_rank: number | null;
+    was_intro_easy: boolean;
     next_review_at: string;
     status: string;
   }[];
@@ -238,6 +239,7 @@ export default async function StatsPage() {
     repetitions: number;
     difficulty: string | null;
     frequency_rank: number | null;
+    was_intro_easy: boolean;
   }[];
 
   // === CEFR distribution + vocabulary estimate ===

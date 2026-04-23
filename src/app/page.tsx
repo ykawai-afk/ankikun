@@ -61,12 +61,14 @@ export default async function Home() {
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
       .neq("status", "suspended"),
+    // Mastered = interval ≥ 21d OR was_intro_easy. Matches isMastered()
+    // in src/lib/mastery.ts so the count here aligns with stats.
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
       .neq("status", "suspended")
-      .gte("interval_days", MASTERED_THRESHOLD_DAYS),
+      .or(`interval_days.gte.${MASTERED_THRESHOLD_DAYS},was_intro_easy.eq.true`),
     supabase
       .from("review_logs")
       .select("reviewed_at")

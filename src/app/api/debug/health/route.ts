@@ -8,7 +8,7 @@ import {
   VOCAB_MILESTONES,
   vocabCurrentLevel,
 } from "@/lib/goals";
-import { MASTERED_THRESHOLD_DAYS } from "@/lib/mastery";
+import { isMastered } from "@/lib/mastery";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -300,7 +300,7 @@ export async function GET(req: NextRequest) {
   const { data: activeCards } = await db
     .from("cards")
     .select(
-      "id, word, ease_factor, interval_days, repetitions, last_reviewed_at, status"
+      "id, word, ease_factor, interval_days, repetitions, last_reviewed_at, status, was_intro_easy"
     )
     .eq("user_id", userId)
     .neq("status", "suspended");
@@ -321,7 +321,9 @@ export async function GET(req: NextRequest) {
   const meanEase =
     c.length > 0 ? c.reduce((s, x) => s + x.ease_factor, 0) / c.length : 0;
   const easeFloor = c.filter((x) => x.ease_factor <= 1.31).length;
-  const mastered = c.filter((x) => x.interval_days >= MASTERED_THRESHOLD_DAYS).length;
+  const mastered = c.filter((x) =>
+    isMastered(x as { interval_days: number; was_intro_easy?: boolean })
+  ).length;
 
   // Anomalies
   const { data: orphans } = await db

@@ -48,6 +48,7 @@ export type Card = {
   audio_url: string | null;
   difficulty: CEFRLevel | null;
   frequency_rank: number | null;
+  was_intro_easy: boolean;
   image_url: string | null;
   related_words: RelatedWord[] | null;
   extra_examples: ExtraExample[] | null;

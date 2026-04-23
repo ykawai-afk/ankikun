@@ -27,6 +27,10 @@ create table if not exists public.cards (
     check (difficulty in ('A1','A2','B1','B2','C1','C2')),
   frequency_rank integer
     check (frequency_rank is null or (frequency_rank > 0 and frequency_rank <= 60000)),
+  -- True if the user rated this card Easy on its very first review.
+  -- Short-circuits the mastery check since intro-Easy is itself proof of
+  -- prior knowledge even though SM-2 gives a 1-day first interval.
+  was_intro_easy boolean not null default false,
 
   -- SM-2 state
   ease_factor real not null default 2.5,

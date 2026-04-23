@@ -3,10 +3,11 @@
 // must route through this file — otherwise two screens can disagree on the
 // same word.
 //
-// "Mastered" = interval_days ≥ 21. This is the SM-2 canonical threshold: the
-// algorithm scheduled the card ≥3 weeks out, meaning retention is statistically
-// likely. We deliberately do NOT include a one-shot-correct bonus; that
-// inflates the number with cards that haven't yet proven they stick.
+// "Mastered" = interval_days ≥ 21 OR user rated Easy on their very first
+// review. The 21d threshold is the canonical SM-2 signal that SRS has
+// learned the card. Intro-Easy is a separate path: rating Easy first-pass
+// means the user already knew the word (SM-2 still gives a 1d interval,
+// but the card's history proves retention so we count it immediately).
 //
 // "Active" = anything except status="suspended". Suspended cards are outside
 // the active learning loop, so mastered % should be "of what I'm learning"
@@ -14,8 +15,14 @@
 
 export const MASTERED_THRESHOLD_DAYS = 21;
 
-export function isMastered(card: { interval_days: number }): boolean {
-  return card.interval_days >= MASTERED_THRESHOLD_DAYS;
+export function isMastered(card: {
+  interval_days: number;
+  was_intro_easy?: boolean;
+}): boolean {
+  return (
+    card.interval_days >= MASTERED_THRESHOLD_DAYS ||
+    card.was_intro_easy === true
+  );
 }
 
 export function isActive(card: { status: string }): boolean {
