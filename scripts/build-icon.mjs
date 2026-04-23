@@ -104,8 +104,13 @@ async function keyOutBackground(filePath, targetSize) {
   // as a wall and is preserved. This stops an interior pixel that happens
   // to match pastel-purple in colour from being erased because the fill
   // can only reach it through a continuous path of bg-coloured pixels.
-  const NEAR = 18;
-  const FAR = 55;
+  // NEAR = full-transparent distance. FAR = wall-by-colour-distance.
+  // BRIGHT_WALL additionally protects near-white character pixels (beard,
+  // eyes, highlights) — the painted circle blends dim the ring pixels
+  // below this brightness so they still get through.
+  const NEAR = 30;
+  const FAR = 65;
+  const BRIGHT_WALL = 245;
   const total = width * height;
   const isBgLike = (r, g, b) => {
     const dO = colorDistance(r, g, b, bgOuter.r, bgOuter.g, bgOuter.b);
@@ -140,16 +145,19 @@ async function keyOutBackground(filePath, targetSize) {
   while (qHead < qTail) {
     const idx = queue[qHead++];
     const p = idx * channels;
-    const d = isBgLike(data[p], data[p + 1], data[p + 2]);
-    if (d >= FAR) {
+    const r = data[p];
+    const g = data[p + 1];
+    const b = data[p + 2];
+    const d = isBgLike(r, g, b);
+    const bright = Math.max(r, g, b);
+    if (d >= FAR || bright >= BRIGHT_WALL) {
       // Wall: character pixel. Don't touch, don't propagate.
       continue;
     }
-    // Fade: near bg = fully transparent, edge-of-tolerance = soft.
-    let alpha;
-    if (d <= NEAR) alpha = 0;
-    else alpha = Math.round(((d - NEAR) / (FAR - NEAR)) * 255);
-    alphaOf[idx] = alpha;
+    // Everything the flood can reach is background — erase it outright
+    // (binary key). Fade bands left visible rings; the character wall
+    // conditions above are what preserve beard/wand/robe.
+    alphaOf[idx] = 0;
     const x = idx % width;
     const y = (idx - x) / width;
     if (x > 0) push(idx - 1);
