@@ -286,19 +286,40 @@ export default async function StatsPage() {
     }
   }
 
+  // Per-CEFR contribution is signed: accuracy 100% → +full, 50% → 0,
+  // 0% → -full. Lets cards the user keeps missing actively pull the total
+  // down instead of merely adding less. Undersampled levels (< MIN reviews)
+  // still default to +1 via cefrAccuracy so early learners aren't penalised
+  // on speculation.
   const vocabCardContribution = Object.entries(masteredCefrCounts).reduce(
-    (sum, [level, count]) =>
-      sum +
-      count *
-        (VOCAB_CARD_WEIGHT[level] ?? 0) *
-        (cefrAccuracy[level] ?? 1),
+    (sum, [level, count]) => {
+      const acc = cefrAccuracy[level] ?? 1;
+      const signed = 2 * acc - 1;
+      return sum + count * (VOCAB_CARD_WEIGHT[level] ?? 0) * signed;
+    },
     0
   );
+  // Baseline haircut when overall retention is weak. Maps 100% retention →
+  // ×1.0 (full baseline credit), 50% → ×0.75, 0% → ×0.5. Requires enough
+  // review volume overall to kick in, otherwise baseline stays whole.
+  let totalReviews = 0;
+  let totalNonAgain = 0;
+  for (const lv of [...cefrOrder, "unknown"] as const) {
+    totalReviews += cefrReviewTotals[lv] ?? 0;
+    totalNonAgain += cefrNonAgain[lv] ?? 0;
+  }
+  const overallRetention =
+    totalReviews >= MIN_REVIEWS_FOR_ACC ? totalNonAgain / totalReviews : 1;
+  const baselineHealth = 0.5 + 0.5 * overallRetention;
+  const adjustedBaseline = VOCAB_BASELINE * baselineHealth;
   const masteredCount = Object.values(masteredCefrCounts).reduce(
     (a, b) => a + b,
     0
   );
-  const vocabEstimate = Math.round(VOCAB_BASELINE + vocabCardContribution);
+  const vocabEstimate = Math.max(
+    0,
+    Math.round(adjustedBaseline + vocabCardContribution)
+  );
   const currentLevel = vocabCurrentLevel(vocabEstimate);
   const nextLevel = VOCAB_MILESTONES.find((m) => m.value > vocabEstimate);
   const toNext = nextLevel ? nextLevel.value - vocabEstimate : null;
