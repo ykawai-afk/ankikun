@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Build src/app/icon.png (and apple-icon.png): Instagram-esque
-// orange → pink-red → purple gradient backdrop with the 30 level avatars
-// floating over it as rounded tiles, the gradient peeking through the gaps.
+// orange → pink-red → purple gradient with the 30th / final level
+// character (shakespearean-savant) centred on top. "Max-level" aspiration.
 //
 // Usage: node scripts/build-icon.mjs
 
@@ -13,19 +13,21 @@ const ROOT = path.join(
   path.dirname(new URL(import.meta.url).pathname),
   ".."
 );
-const LEVELS_DIR = path.join(ROOT, "public", "levels");
+const HERO_FILE = path.join(
+  ROOT,
+  "public",
+  "levels",
+  "shakespearean-savant.png"
+);
 const OUT_ICON = path.join(ROOT, "src", "app", "icon.png");
 const OUT_APPLE = path.join(ROOT, "src", "app", "apple-icon.png");
 
 const SIZE = 512;
-const COLS = 5;
-const ROWS = 6;
-const PADDING = 12;       // outer margin
-const GAP = 6;            // space between tiles (gradient shows through)
-const TILE_RADIUS = 16;
+// Hero takes most of the icon but leaves a bit of gradient halo.
+const HERO_SIZE = 460;
+const HERO_OFFSET = Math.floor((SIZE - HERO_SIZE) / 2);
 
 function gradientSvg() {
-  // Instagram-flavoured warm-to-cool: orange → magenta → purple.
   return `
     <svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -41,55 +43,28 @@ function gradientSvg() {
   `;
 }
 
-async function roundedTile(filePath, size, radius) {
+async function build() {
+  if (!fs.existsSync(HERO_FILE)) {
+    throw new Error(`hero image not found: ${HERO_FILE}`);
+  }
+
+  // Circular mask so the character reads as a medallion.
   const mask = Buffer.from(`
-    <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="${size}" height="${size}" rx="${radius}" ry="${radius}" fill="white" />
+    <svg width="${HERO_SIZE}" height="${HERO_SIZE}" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="${HERO_SIZE / 2}" cy="${HERO_SIZE / 2}" r="${HERO_SIZE / 2}" fill="white" />
     </svg>
   `);
-  return sharp(filePath)
-    .resize(size, size, { fit: "cover", position: "attention" })
+  const hero = await sharp(HERO_FILE)
+    .resize(HERO_SIZE, HERO_SIZE, { fit: "cover", position: "attention" })
     .composite([{ input: mask, blend: "dest-in" }])
     .png()
     .toBuffer();
-}
 
-async function build() {
-  const files = fs
-    .readdirSync(LEVELS_DIR)
-    .filter((f) => f.endsWith(".png"))
-    .sort()
-    .slice(0, COLS * ROWS);
-  if (files.length === 0) {
-    throw new Error(`no level images in ${LEVELS_DIR}`);
-  }
-
-  const usableW = SIZE - PADDING * 2 - GAP * (COLS - 1);
-  const usableH = SIZE - PADDING * 2 - GAP * (ROWS - 1);
-  const tileW = Math.floor(usableW / COLS);
-  const tileH = Math.floor(usableH / ROWS);
-  const tileSize = Math.min(tileW, tileH);
-
-  const tiles = await Promise.all(
-    files.map(async (f, i) => {
-      const col = i % COLS;
-      const row = Math.floor(i / COLS);
-      const left = PADDING + col * (tileSize + GAP);
-      const top = PADDING + row * (tileSize + GAP);
-      const buf = await roundedTile(
-        path.join(LEVELS_DIR, f),
-        tileSize,
-        TILE_RADIUS
-      );
-      return { input: buf, left, top };
-    })
-  );
-
-  const base = await sharp(Buffer.from(gradientSvg()))
+  const base = await sharp(Buffer.from(gradientSvg())).png().toBuffer();
+  const finalBuf = await sharp(base)
+    .composite([{ input: hero, left: HERO_OFFSET, top: HERO_OFFSET }])
     .png()
     .toBuffer();
-
-  const finalBuf = await sharp(base).composite(tiles).png().toBuffer();
 
   fs.writeFileSync(OUT_ICON, finalBuf);
   console.log(`✓ ${path.relative(ROOT, OUT_ICON)} (${SIZE}×${SIZE})`);
