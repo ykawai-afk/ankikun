@@ -295,9 +295,10 @@ export default async function StatsPage() {
       sum + count * (VOCAB_CARD_WEIGHT[level] ?? 0),
     0
   );
-  // Baseline haircut when overall retention is weak. Maps 100% retention →
-  // ×1.0 (full baseline credit), 50% → ×0.75, 0% → ×0.5. Requires enough
-  // review volume overall to kick in, otherwise baseline stays whole.
+  // Baseline haircut when overall retention slips below healthy (80%).
+  // Above 80% → no haircut (you're doing fine). Below 80% → ramp linearly
+  // down to a 0.85 floor at 0% retention, so the baseline never drops past
+  // 6800. The earlier 0.5 floor was over-punishing a natural bad-week dip.
   let totalReviews = 0;
   let totalNonAgain = 0;
   for (const lv of [...cefrOrder, "unknown"] as const) {
@@ -306,7 +307,13 @@ export default async function StatsPage() {
   }
   const overallRetention =
     totalReviews >= MIN_REVIEWS_FOR_ACC ? totalNonAgain / totalReviews : 1;
-  const baselineHealth = 0.5 + 0.5 * overallRetention;
+  const HEALTHY_RETENTION = 0.8;
+  const HAIRCUT_FLOOR = 0.85;
+  const baselineHealth =
+    overallRetention >= HEALTHY_RETENTION
+      ? 1
+      : HAIRCUT_FLOOR +
+        (1 - HAIRCUT_FLOOR) * (overallRetention / HEALTHY_RETENTION);
   const adjustedBaseline = VOCAB_BASELINE * baselineHealth;
   const masteredCount = Object.values(masteredCefrCounts).reduce(
     (a, b) => a + b,
