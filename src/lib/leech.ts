@@ -56,9 +56,23 @@ async function getCombinedLeechIds(userId: string): Promise<string[]> {
   for (const { id, score } of logBased) scored.set(id, score);
   // Ease-floor hit gets a large score so they surface first in leech mode.
   for (const id of easeBased) scored.set(id, (scored.get(id) ?? 0) + 5);
-  return [...scored.entries()]
+  const ranked = [...scored.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([id]) => id);
+
+  // Log-based scoring can surface stale IDs whose card was deleted or
+  // suspended (review_logs outlive the card row). Intersect with live,
+  // non-suspended cards so the home counter and /review/leech queue match.
+  if (ranked.length === 0) return ranked;
+  const supabase = createAdminClient();
+  const { data: live } = await supabase
+    .from("cards")
+    .select("id")
+    .eq("user_id", userId)
+    .neq("status", "suspended")
+    .in("id", ranked);
+  const liveSet = new Set((live ?? []).map((r) => r.id as string));
+  return ranked.filter((id) => liveSet.has(id));
 }
 
 export async function getLeechCount(userId: string): Promise<number> {
