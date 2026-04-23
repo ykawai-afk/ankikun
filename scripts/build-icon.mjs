@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Build src/app/icon.png (and apple-icon.png) from the 30 level avatars
-// tiled behind a tinted "A" overlay. Run after swapping level images.
+// Build src/app/icon.png (and apple-icon.png): Instagram-esque
+// orange → pink-red → purple gradient backdrop with the 30 level avatars
+// floating over it as rounded tiles, the gradient peeking through the gaps.
 //
 // Usage: node scripts/build-icon.mjs
 
@@ -17,107 +18,88 @@ const OUT_ICON = path.join(ROOT, "src", "app", "icon.png");
 const OUT_APPLE = path.join(ROOT, "src", "app", "apple-icon.png");
 
 const SIZE = 512;
-const COLS = 5; // 5 × 6 = 30 tiles
+const COLS = 5;
 const ROWS = 6;
-const TILE = Math.ceil(SIZE / COLS); // 103px
+const PADDING = 12;       // outer margin
+const GAP = 6;            // space between tiles (gradient shows through)
+const TILE_RADIUS = 16;
 
-async function buildComposite() {
+function gradientSvg() {
+  // Instagram-flavoured warm-to-cool: orange → magenta → purple.
+  return `
+    <svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%"  stop-color="#fa8e1e" />
+          <stop offset="35%" stop-color="#f53f6a" />
+          <stop offset="65%" stop-color="#d22a84" />
+          <stop offset="100%" stop-color="#7b2ea3" />
+        </linearGradient>
+      </defs>
+      <rect width="${SIZE}" height="${SIZE}" fill="url(#g)" />
+    </svg>
+  `;
+}
+
+async function roundedTile(filePath, size, radius) {
+  const mask = Buffer.from(`
+    <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${size}" height="${size}" rx="${radius}" ry="${radius}" fill="white" />
+    </svg>
+  `);
+  return sharp(filePath)
+    .resize(size, size, { fit: "cover", position: "attention" })
+    .composite([{ input: mask, blend: "dest-in" }])
+    .png()
+    .toBuffer();
+}
+
+async function build() {
   const files = fs
     .readdirSync(LEVELS_DIR)
     .filter((f) => f.endsWith(".png"))
-    .sort();
+    .sort()
+    .slice(0, COLS * ROWS);
   if (files.length === 0) {
     throw new Error(`no level images in ${LEVELS_DIR}`);
   }
 
-  // Resize each tile to TILE×TILE and place into a grid.
+  const usableW = SIZE - PADDING * 2 - GAP * (COLS - 1);
+  const usableH = SIZE - PADDING * 2 - GAP * (ROWS - 1);
+  const tileW = Math.floor(usableW / COLS);
+  const tileH = Math.floor(usableH / ROWS);
+  const tileSize = Math.min(tileW, tileH);
+
   const tiles = await Promise.all(
-    files.slice(0, COLS * ROWS).map(async (f, i) => {
-      const buf = await sharp(path.join(LEVELS_DIR, f))
-        .resize(TILE, TILE, { fit: "cover", position: "attention" })
-        .toBuffer();
+    files.map(async (f, i) => {
       const col = i % COLS;
       const row = Math.floor(i / COLS);
-      return {
-        input: buf,
-        left: col * TILE,
-        top: row * TILE,
-      };
+      const left = PADDING + col * (tileSize + GAP);
+      const top = PADDING + row * (tileSize + GAP);
+      const buf = await roundedTile(
+        path.join(LEVELS_DIR, f),
+        tileSize,
+        TILE_RADIUS
+      );
+      return { input: buf, left, top };
     })
   );
 
-  // Background canvas sized up to TILE*COLS × TILE*ROWS, then cropped to
-  // 512×512 from top.
-  const grid = await sharp({
-    create: {
-      width: TILE * COLS,
-      height: TILE * ROWS,
-      channels: 4,
-      background: { r: 0, g: 0, b: 0, alpha: 1 },
-    },
-  })
-    .composite(tiles)
+  const base = await sharp(Buffer.from(gradientSvg()))
     .png()
     .toBuffer();
 
-  // Crop/pad to SIZE×SIZE (center-crop vertically).
-  const gridSized = await sharp(grid)
-    .resize(SIZE, SIZE, { fit: "cover", position: "center" })
-    .png()
-    .toBuffer();
+  const finalBuf = await sharp(base).composite(tiles).png().toBuffer();
 
-  // Tinted accent gradient overlay + the letter "A".
-  const overlaySvg = Buffer.from(`
-    <svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#4f46e5" stop-opacity="0.78" />
-          <stop offset="60%" stop-color="#7c3aed" stop-opacity="0.72" />
-          <stop offset="100%" stop-color="#f97316" stop-opacity="0.68" />
-        </linearGradient>
-        <radialGradient id="v" cx="50%" cy="55%" r="70%">
-          <stop offset="40%" stop-color="#000" stop-opacity="0" />
-          <stop offset="100%" stop-color="#000" stop-opacity="0.35" />
-        </radialGradient>
-        <filter id="s" x="-10%" y="-10%" width="120%" height="120%">
-          <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.45" />
-        </filter>
-      </defs>
-      <rect width="${SIZE}" height="${SIZE}" fill="url(#g)" />
-      <rect width="${SIZE}" height="${SIZE}" fill="url(#v)" />
-      <text
-        x="50%" y="50%"
-        text-anchor="middle" dominant-baseline="central"
-        font-family="system-ui, -apple-system, sans-serif"
-        font-weight="800"
-        font-size="320"
-        fill="white"
-        filter="url(#s)"
-        letter-spacing="-0.05em"
-      >A</text>
-    </svg>
-  `);
-
-  const finalBuf = await sharp(gridSized)
-    .composite([{ input: overlaySvg, top: 0, left: 0 }])
-    .png()
-    .toBuffer();
-
-  return finalBuf;
-}
-
-async function main() {
-  const buf = await buildComposite();
-  fs.writeFileSync(OUT_ICON, buf);
+  fs.writeFileSync(OUT_ICON, finalBuf);
   console.log(`✓ ${path.relative(ROOT, OUT_ICON)} (${SIZE}×${SIZE})`);
 
-  // Apple touch icon: 180×180
-  const appleBuf = await sharp(buf).resize(180, 180).png().toBuffer();
+  const appleBuf = await sharp(finalBuf).resize(180, 180).png().toBuffer();
   fs.writeFileSync(OUT_APPLE, appleBuf);
   console.log(`✓ ${path.relative(ROOT, OUT_APPLE)} (180×180)`);
 }
 
-main().catch((e) => {
+build().catch((e) => {
   console.error(e);
   process.exit(1);
 });
