@@ -10,7 +10,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
 import { PageShell } from "@/components/page-shell";
 import { Heatmap } from "@/components/heatmap";
-import { computeStreak, reviewedTodayCount, countsByDay } from "@/lib/streak";
+import {
+  computeStreak,
+  reviewedTodayCount,
+  countsByDay,
+  todayReviewedAts,
+  computeStudyMinutes,
+} from "@/lib/streak";
 import { getLeechCount } from "@/lib/leech";
 import { DAILY_NEW_TARGET, countNewIntrosSince } from "@/lib/goals";
 import { MASTERED_THRESHOLD_DAYS } from "@/lib/mastery";
@@ -95,6 +101,7 @@ export default async function Home() {
   const reviewedAts = (logsRes.data ?? []).map((r) => r.reviewed_at as string);
   const streak = computeStreak(reviewedAts);
   const todayCount = reviewedTodayCount(reviewedAts);
+  const todayMinutes = computeStudyMinutes(todayReviewedAts(reviewedAts));
   const heatmap = countsByDay(reviewedAts);
 
   const newRemainingToday = Math.max(
@@ -115,6 +122,7 @@ export default async function Home() {
           <StreakBadge days={streak} />
           <span className="text-[10px] uppercase tracking-widest text-muted">
             Today · 完了 {todayCount}
+            {todayMinutes > 0 && <> · 学習 {todayMinutes}分</>}
           </span>
         </section>
 

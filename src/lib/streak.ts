@@ -46,3 +46,38 @@ export function countsByDay(
   }
   return acc;
 }
+
+export function todayReviewedAts(reviewedAtIsoStrings: string[]): string[] {
+  const today = ymdInTokyo(new Date());
+  return reviewedAtIsoStrings.filter(
+    (iso) => ymdInTokyo(new Date(iso)) === today
+  );
+}
+
+// Estimate total study minutes from a list of review timestamps. A gap of
+// more than `gapMs` ends a session; each review inside a session counts
+// for at most `capMs` (to avoid crediting phone-down / distraction time).
+// Last review of a session gets the cap itself. Same algorithm the stats
+// page has used — pulled here so home can re-use without duplicating.
+const DEFAULT_SESSION_GAP_MS = 5 * 60_000;
+const DEFAULT_REVIEW_CAP_MS = 60_000;
+
+export function computeStudyMinutes(
+  reviewedAtIsoStrings: string[],
+  opts: { sessionGapMs?: number; reviewCapMs?: number } = {}
+): number {
+  const gapMs = opts.sessionGapMs ?? DEFAULT_SESSION_GAP_MS;
+  const capMs = opts.reviewCapMs ?? DEFAULT_REVIEW_CAP_MS;
+  const stamps = reviewedAtIsoStrings
+    .map((s) => new Date(s).getTime())
+    .sort((a, b) => a - b);
+  let ms = 0;
+  for (let i = 0; i < stamps.length; i++) {
+    const t = stamps[i];
+    const next = stamps[i + 1];
+    const gap = next !== undefined ? next - t : Infinity;
+    if (gap < gapMs) ms += Math.min(gap, capMs);
+    else ms += capMs;
+  }
+  return Math.round(ms / 60_000);
+}
