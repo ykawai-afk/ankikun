@@ -111,6 +111,33 @@ async function keyOutBackground(filePath, targetSize) {
   );
   const flatBg = outerSpread < 10;
 
+  // Gemini-style "transparent" PNGs are actually flattened with the viewer
+  // checkerboard burned in (alternating ~(207) and (255) pure greys). Detect
+  // by: corners all strictly grayscale and sampled patches include both a
+  // bright-gray and a darker-gray extreme.
+  const allGrayish = outerSamples.every(
+    (s) =>
+      Math.max(Math.abs(s.r - s.g), Math.abs(s.g - s.b), Math.abs(s.r - s.b)) <=
+      6
+  );
+  const patchExtremes = (() => {
+    // Re-sample 3×3 windows at tighter spots to catch single cells.
+    const minMax = { min: 255, max: 0 };
+    for (let i = 0; i < 60; i++) {
+      const x = Math.floor(Math.random() * width);
+      const y = Math.floor(Math.random() * Math.min(sw * 3, height));
+      const p = (y * width + x) * channels;
+      const v = Math.max(data[p], data[p + 1], data[p + 2]);
+      if (v < minMax.min) minMax.min = v;
+      if (v > minMax.max) minMax.max = v;
+    }
+    return minMax;
+  })();
+  const checkerBg =
+    allGrayish &&
+    patchExtremes.max - patchExtremes.min > 30 &&
+    patchExtremes.min > 180;
+
   let bgInner;
   let NEAR, FAR;
   if (flatBg) {
@@ -137,7 +164,100 @@ async function keyOutBackground(filePath, targetSize) {
   const alphaOf = new Uint8Array(total);
   alphaOf.fill(255);
 
-  if (flatBg) {
+  if (checkerBg) {
+    // Gemini-style baked-in checker transparency indicator. Character has
+    // white robe & beard which are also grayscale → can't chroma-key on
+    // colour alone. Instead: seed from saturated character pixels (skin,
+    // belt, book) then grow the mask outward through any non-checker
+    // pixel. Checker cells have a hard alternation with their neighbours
+    // (brightness delta > 30 vs neighbour) — that's the wall.
+    const isCheckerCell = (idx) => {
+      const x = idx % width;
+      const y = (idx - x) / width;
+      if (x < 1 || x > width - 2 || y < 1 || y > height - 2) return true;
+      const p = idx * channels;
+      const r = data[p];
+      const g = data[p + 1];
+      const b = data[p + 2];
+      const chroma = Math.max(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b));
+      if (chroma > 8) return false; // coloured → character
+      const v = Math.max(r, g, b);
+      if (v < 180) return false; // dark → character
+      // brightness delta to immediate neighbours
+      const np = [
+        (y - 1) * width + x,
+        (y + 1) * width + x,
+        y * width + (x - 1),
+        y * width + (x + 1),
+      ];
+      for (const nIdx of np) {
+        const q = nIdx * channels;
+        const vn = Math.max(data[q], data[q + 1], data[q + 2]);
+        if (Math.abs(v - vn) > 22) return true;
+      }
+      return false;
+    };
+
+    const mask = new Uint8Array(total); // 1 = character
+    // Seed from saturated pixels
+    for (let i = 0; i < total; i++) {
+      const p = i * channels;
+      const r = data[p];
+      const g = data[p + 1];
+      const b = data[p + 2];
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const sat = max > 0 ? (max - min) / max : 0;
+      if (sat > 0.18 && max > 60) mask[i] = 1;
+    }
+    // BFS grow: include any adjacent pixel that isn't a checker cell
+    const queue = new Int32Array(total);
+    let qHead = 0;
+    let qTail = 0;
+    for (let i = 0; i < total; i++) if (mask[i]) queue[qTail++] = i;
+    while (qHead < qTail) {
+      const idx = queue[qHead++];
+      const x = idx % width;
+      const y = (idx - x) / width;
+      const neighbours = [
+        x > 0 ? idx - 1 : -1,
+        x < width - 1 ? idx + 1 : -1,
+        y > 0 ? idx - width : -1,
+        y < height - 1 ? idx + width : -1,
+      ];
+      for (const n of neighbours) {
+        if (n < 0) continue;
+        if (mask[n]) continue;
+        if (isCheckerCell(n)) continue;
+        mask[n] = 1;
+        queue[qTail++] = n;
+      }
+    }
+    // Erode 2 passes: the grow step tends to leak single checker cells
+    // at the character boundary. 2px inset kills the fringe without
+    // visibly shrinking the silhouette.
+    let work = mask;
+    for (let pass = 0; pass < 2; pass++) {
+      const next = new Uint8Array(total);
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const i = y * width + x;
+          next[i] =
+            work[i] &&
+            work[i - 1] &&
+            work[i + 1] &&
+            work[i - width] &&
+            work[i + width]
+              ? 1
+              : 0;
+        }
+      }
+      work = next;
+    }
+    for (let i = 0; i < total; i++) {
+      if (!work[i]) alphaOf[i] = 0;
+    }
+  } else if (flatBg) {
     // Flat solid bg (e.g. pure white icon-hero render): character colours
     // sit far enough from bg that a direct distance key is safe, and it
     // catches enclosed pockets (between-the-legs, feet gap) that flood
@@ -185,6 +305,18 @@ async function keyOutBackground(filePath, targetSize) {
       if (x < width - 1) push(idx + 1);
       if (y > 0) push(idx - width);
       if (y < height - 1) push(idx + width);
+    }
+  }
+
+  // Watermark wipe: some generators (Gemini) burn a sparkle glyph into the
+  // bottom-right corner. Character never reaches that corner (it's centered
+  // with bg margin), so we can force-clear a small region without touching
+  // the silhouette.
+  const wipeW = Math.round(width * 0.14);
+  const wipeH = Math.round(height * 0.12);
+  for (let y = height - wipeH; y < height; y++) {
+    for (let x = width - wipeW; x < width; x++) {
+      alphaOf[y * width + x] = 0;
     }
   }
 
