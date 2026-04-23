@@ -134,52 +134,58 @@ async function keyOutBackground(filePath, targetSize) {
     return Math.min(dO, dI);
   };
 
-  const visited = new Uint8Array(total);
   const alphaOf = new Uint8Array(total);
   alphaOf.fill(255);
 
-  // Deque via two arrays + head index — faster than Array.shift().
-  const queue = new Int32Array(total);
-  let qHead = 0;
-  let qTail = 0;
-  const push = (idx) => {
-    if (idx < 0 || idx >= total) return;
-    if (visited[idx]) return;
-    visited[idx] = 1;
-    queue[qTail++] = idx;
-  };
-
-  for (let x = 0; x < width; x++) {
-    push(x); // top
-    push((height - 1) * width + x); // bottom
-  }
-  for (let y = 0; y < height; y++) {
-    push(y * width); // left
-    push(y * width + (width - 1)); // right
-  }
-
-  while (qHead < qTail) {
-    const idx = queue[qHead++];
-    const p = idx * channels;
-    const r = data[p];
-    const g = data[p + 1];
-    const b = data[p + 2];
-    const d = isBgLike(r, g, b);
-    const bright = Math.max(r, g, b);
-    if (d >= FAR || bright >= BRIGHT_WALL) {
-      // Wall: character pixel. Don't touch, don't propagate.
-      continue;
+  if (flatBg) {
+    // Flat solid bg (e.g. pure white icon-hero render): character colours
+    // sit far enough from bg that a direct distance key is safe, and it
+    // catches enclosed pockets (between-the-legs, feet gap) that flood
+    // fill from the edges can't reach.
+    for (let i = 0; i < total; i++) {
+      const p = i * channels;
+      if (isBgLike(data[p], data[p + 1], data[p + 2]) < FAR) {
+        alphaOf[i] = 0;
+      }
     }
-    // Everything the flood can reach is background — erase it outright
-    // (binary key). Fade bands left visible rings; the character wall
-    // conditions above are what preserve beard/wand/robe.
-    alphaOf[idx] = 0;
-    const x = idx % width;
-    const y = (idx - x) / width;
-    if (x > 0) push(idx - 1);
-    if (x < width - 1) push(idx + 1);
-    if (y > 0) push(idx - width);
-    if (y < height - 1) push(idx + width);
+  } else {
+    // Painted-circle bg: robe purple is close to bg purple, so we need
+    // connectivity to keep the character intact. Flood from edges.
+    const visited = new Uint8Array(total);
+    const queue = new Int32Array(total);
+    let qHead = 0;
+    let qTail = 0;
+    const push = (idx) => {
+      if (idx < 0 || idx >= total) return;
+      if (visited[idx]) return;
+      visited[idx] = 1;
+      queue[qTail++] = idx;
+    };
+    for (let x = 0; x < width; x++) {
+      push(x);
+      push((height - 1) * width + x);
+    }
+    for (let y = 0; y < height; y++) {
+      push(y * width);
+      push(y * width + (width - 1));
+    }
+    while (qHead < qTail) {
+      const idx = queue[qHead++];
+      const p = idx * channels;
+      const r = data[p];
+      const g = data[p + 1];
+      const b = data[p + 2];
+      const d = isBgLike(r, g, b);
+      const bright = Math.max(r, g, b);
+      if (d >= FAR || bright >= BRIGHT_WALL) continue;
+      alphaOf[idx] = 0;
+      const x = idx % width;
+      const y = (idx - x) / width;
+      if (x > 0) push(idx - 1);
+      if (x < width - 1) push(idx + 1);
+      if (y > 0) push(idx - width);
+      if (y < height - 1) push(idx + width);
+    }
   }
 
   for (let i = 0; i < total; i++) {
