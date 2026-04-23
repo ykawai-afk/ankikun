@@ -99,21 +99,67 @@ async function keyOutBackground(filePath, targetSize) {
   const bgOuter = medianColor(outerSamples);
   const bgInner = medianColor(innerSamples);
 
-  const NEAR = 22;
-  const FAR = 70;
-  for (let i = 0; i < width * height; i++) {
-    const idx = i * channels;
-    const r = data[idx];
-    const g = data[idx + 1];
-    const b = data[idx + 2];
-    const dOuter = colorDistance(r, g, b, bgOuter.r, bgOuter.g, bgOuter.b);
-    const dInner = colorDistance(r, g, b, bgInner.r, bgInner.g, bgInner.b);
-    const d = Math.min(dOuter, dInner);
+  // Flood-fill from every edge pixel. Only pixels close to one of the two
+  // bg colours get swept through; anything further (beard, skin, robe) acts
+  // as a wall and is preserved. This stops an interior pixel that happens
+  // to match pastel-purple in colour from being erased because the fill
+  // can only reach it through a continuous path of bg-coloured pixels.
+  const NEAR = 18;
+  const FAR = 55;
+  const total = width * height;
+  const isBgLike = (r, g, b) => {
+    const dO = colorDistance(r, g, b, bgOuter.r, bgOuter.g, bgOuter.b);
+    const dI = colorDistance(r, g, b, bgInner.r, bgInner.g, bgInner.b);
+    return Math.min(dO, dI);
+  };
+
+  const visited = new Uint8Array(total);
+  const alphaOf = new Uint8Array(total);
+  alphaOf.fill(255);
+
+  // Deque via two arrays + head index — faster than Array.shift().
+  const queue = new Int32Array(total);
+  let qHead = 0;
+  let qTail = 0;
+  const push = (idx) => {
+    if (idx < 0 || idx >= total) return;
+    if (visited[idx]) return;
+    visited[idx] = 1;
+    queue[qTail++] = idx;
+  };
+
+  for (let x = 0; x < width; x++) {
+    push(x); // top
+    push((height - 1) * width + x); // bottom
+  }
+  for (let y = 0; y < height; y++) {
+    push(y * width); // left
+    push(y * width + (width - 1)); // right
+  }
+
+  while (qHead < qTail) {
+    const idx = queue[qHead++];
+    const p = idx * channels;
+    const d = isBgLike(data[p], data[p + 1], data[p + 2]);
+    if (d >= FAR) {
+      // Wall: character pixel. Don't touch, don't propagate.
+      continue;
+    }
+    // Fade: near bg = fully transparent, edge-of-tolerance = soft.
     let alpha;
     if (d <= NEAR) alpha = 0;
-    else if (d >= FAR) alpha = 255;
     else alpha = Math.round(((d - NEAR) / (FAR - NEAR)) * 255);
-    data[idx + 3] = alpha;
+    alphaOf[idx] = alpha;
+    const x = idx % width;
+    const y = (idx - x) / width;
+    if (x > 0) push(idx - 1);
+    if (x < width - 1) push(idx + 1);
+    if (y > 0) push(idx - width);
+    if (y < height - 1) push(idx + width);
+  }
+
+  for (let i = 0; i < total; i++) {
+    data[i * channels + 3] = alphaOf[i];
   }
 
   return sharp(data, { raw: { width, height, channels } }).png().toBuffer();
