@@ -77,6 +77,12 @@ export function AddForm() {
               {result.words.join(" · ")}
             </p>
           )}
+          {result.skippedDuplicates.length > 0 && (
+            <p className="text-[11px] text-muted/80 max-w-xs text-center mt-1">
+              重複でスキップ {result.skippedDuplicates.length}件：
+              {result.skippedDuplicates.join(" · ")}
+            </p>
+          )}
         </div>
         <div className="flex gap-2 w-full max-w-xs">
           <button

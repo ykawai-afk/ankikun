@@ -180,6 +180,52 @@ async function rescueFrequencyRank(
   }
 }
 
+// Drop inserts whose `word` (case-insensitive) is already in the user's
+// deck or duplicates another word in this same ingestion batch. The
+// ingest prompt already normalises to lemma form, so equality on the
+// lowercased word is sufficient. Returns the filtered inserts and the
+// list of words that were skipped (so the caller can surface a count).
+async function dedupeInsertsAgainstDeck<T extends { word: string }>(
+  supabase: ReturnType<typeof createAdminClient>,
+  userId: string,
+  inserts: T[]
+): Promise<{ deduped: T[]; skipped: string[] }> {
+  if (inserts.length === 0) return { deduped: [], skipped: [] };
+  const norm = (w: string) => w.toLowerCase().trim();
+
+  const seen = new Set<string>();
+  const internal: T[] = [];
+  const skipped: string[] = [];
+  for (const c of inserts) {
+    const k = norm(c.word);
+    if (!k) continue;
+    if (seen.has(k)) {
+      skipped.push(c.word);
+      continue;
+    }
+    seen.add(k);
+    internal.push(c);
+  }
+
+  const { data: existingRows } = await supabase
+    .from("cards")
+    .select("word")
+    .eq("user_id", userId);
+  const existing = new Set(
+    (existingRows ?? []).map((r) => norm(r.word as string))
+  );
+
+  const deduped: T[] = [];
+  for (const c of internal) {
+    if (existing.has(norm(c.word))) {
+      skipped.push(c.word);
+      continue;
+    }
+    deduped.push(c);
+  }
+  return { deduped, skipped };
+}
+
 // Mutates the inserts array in place: replaces any frequency_rank=null on
 // words that have a CEFR (i.e. the primary model forgot the field) with a
 // Haiku-rescued band midpoint. Words with difficulty=null are assumed to be
@@ -216,6 +262,7 @@ export type IngestResult = {
   ingestion_id: string;
   cards_created: number;
   words: string[];
+  skipped_duplicates: string[];
 };
 
 export async function processIngest({
@@ -291,9 +338,14 @@ export async function processIngest({
       source_context: parsed.source_context,
     }));
 
-    if (cardsToInsert.length > 0) {
-      await rescueMissingFreqRanks(cardsToInsert);
-      const { error: cardsError } = await supabase.from("cards").insert(cardsToInsert);
+    const { deduped, skipped } = await dedupeInsertsAgainstDeck(
+      supabase,
+      userId,
+      cardsToInsert
+    );
+    if (deduped.length > 0) {
+      await rescueMissingFreqRanks(deduped);
+      const { error: cardsError } = await supabase.from("cards").insert(deduped);
       if (cardsError) throw new Error(`cards insert failed: ${cardsError.message}`);
     }
 
@@ -302,15 +354,16 @@ export async function processIngest({
       .update({
         status: "processed",
         raw_response: parsed as unknown as Record<string, unknown>,
-        cards_created: cardsToInsert.length,
+        cards_created: deduped.length,
         processed_at: new Date().toISOString(),
       })
       .eq("id", ingestion.id);
 
     return {
       ingestion_id: ingestion.id,
-      cards_created: cardsToInsert.length,
-      words: parsed.words.map((w) => w.word),
+      cards_created: deduped.length,
+      words: deduped.map((c) => c.word),
+      skipped_duplicates: skipped,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -443,11 +496,13 @@ ${title ? `ページ: ${title}\n` : ""}${sourceUrl ? `URL: ${sourceUrl}\n` : ""}
               source_context: sourceContext,
             },
           ];
-      if (inserts.length > 0) {
-        await rescueMissingFreqRanks(inserts);
+      const { deduped: insertsDeduped, skipped: skippedSingle } =
+        await dedupeInsertsAgainstDeck(supabase, userId, inserts);
+      if (insertsDeduped.length > 0) {
+        await rescueMissingFreqRanks(insertsDeduped);
         const { error: cardsError } = await supabase
           .from("cards")
-          .insert(inserts);
+          .insert(insertsDeduped);
         if (cardsError)
           throw new Error(`cards insert failed: ${cardsError.message}`);
       }
@@ -456,14 +511,15 @@ ${title ? `ページ: ${title}\n` : ""}${sourceUrl ? `URL: ${sourceUrl}\n` : ""}
         .update({
           status: "processed",
           raw_response: parsed as unknown as Record<string, unknown>,
-          cards_created: inserts.length,
+          cards_created: insertsDeduped.length,
           processed_at: new Date().toISOString(),
         })
         .eq("id", ingestion.id);
       return {
         ingestion_id: ingestion.id,
-        cards_created: inserts.length,
-        words: inserts.map((c) => c.word),
+        cards_created: insertsDeduped.length,
+        words: insertsDeduped.map((c) => c.word),
+        skipped_duplicates: skippedSingle,
       };
     }
 
@@ -506,11 +562,16 @@ ${trimmed.slice(0, 18000)}`;
       source_context: sourceContext,
     }));
 
-    if (cardsToInsert.length > 0) {
-      await rescueMissingFreqRanks(cardsToInsert);
+    const { deduped, skipped } = await dedupeInsertsAgainstDeck(
+      supabase,
+      userId,
+      cardsToInsert
+    );
+    if (deduped.length > 0) {
+      await rescueMissingFreqRanks(deduped);
       const { error: cardsError } = await supabase
         .from("cards")
-        .insert(cardsToInsert);
+        .insert(deduped);
       if (cardsError) throw new Error(`cards insert failed: ${cardsError.message}`);
     }
 
@@ -519,15 +580,16 @@ ${trimmed.slice(0, 18000)}`;
       .update({
         status: "processed",
         raw_response: parsed as unknown as Record<string, unknown>,
-        cards_created: cardsToInsert.length,
+        cards_created: deduped.length,
         processed_at: new Date().toISOString(),
       })
       .eq("id", ingestion.id);
 
     return {
       ingestion_id: ingestion.id,
-      cards_created: cardsToInsert.length,
-      words: parsed.words.map((w) => w.word),
+      cards_created: deduped.length,
+      words: deduped.map((c) => c.word),
+      skipped_duplicates: skipped,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -612,11 +674,16 @@ ${text}`,
       source_context: title ? `${title} — ${url}` : url,
     }));
 
-    if (cardsToInsert.length > 0) {
-      await rescueMissingFreqRanks(cardsToInsert);
+    const { deduped, skipped } = await dedupeInsertsAgainstDeck(
+      supabase,
+      userId,
+      cardsToInsert
+    );
+    if (deduped.length > 0) {
+      await rescueMissingFreqRanks(deduped);
       const { error: cardsError } = await supabase
         .from("cards")
-        .insert(cardsToInsert);
+        .insert(deduped);
       if (cardsError) throw new Error(`cards insert failed: ${cardsError.message}`);
     }
 
@@ -625,15 +692,16 @@ ${text}`,
       .update({
         status: "processed",
         raw_response: parsed as unknown as Record<string, unknown>,
-        cards_created: cardsToInsert.length,
+        cards_created: deduped.length,
         processed_at: new Date().toISOString(),
       })
       .eq("id", ingestion.id);
 
     return {
       ingestion_id: ingestion.id,
-      cards_created: cardsToInsert.length,
-      words: parsed.words.map((w) => w.word),
+      cards_created: deduped.length,
+      words: deduped.map((c) => c.word),
+      skipped_duplicates: skipped,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

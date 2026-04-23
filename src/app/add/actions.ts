@@ -6,7 +6,12 @@ import { getUserId } from "@/lib/user";
 import { CACHE_TAGS } from "@/lib/cache";
 
 export type AddResult =
-  | { ok: true; cardsCreated: number; words: string[] }
+  | {
+      ok: true;
+      cardsCreated: number;
+      words: string[];
+      skippedDuplicates: string[];
+    }
   | { ok: false; error: string };
 
 export async function addFromImage(formData: FormData): Promise<AddResult> {
@@ -31,6 +36,7 @@ export async function addFromImage(formData: FormData): Promise<AddResult> {
       ok: true,
       cardsCreated: result.cards_created,
       words: result.words,
+      skippedDuplicates: result.skipped_duplicates,
     };
   } catch (err) {
     return {
@@ -54,6 +60,7 @@ export async function addFromUrl(formData: FormData): Promise<AddResult> {
       ok: true,
       cardsCreated: result.cards_created,
       words: result.words,
+      skippedDuplicates: result.skipped_duplicates,
     };
   } catch (err) {
     return {
