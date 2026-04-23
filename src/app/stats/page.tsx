@@ -4,7 +4,11 @@ import { getUserId } from "@/lib/user";
 import { CACHE_TAGS } from "@/lib/cache";
 import { PageShell } from "@/components/page-shell";
 import { LevelAvatar } from "@/components/level-avatar";
-import { computeStreak } from "@/lib/streak";
+import {
+  computeStreak,
+  computeStudyMinutes,
+  todayReviewedAts,
+} from "@/lib/streak";
 import {
   DAILY_NEW_TARGET,
   WEEKLY_NEW_TARGET,
@@ -434,6 +438,7 @@ export default async function StatsPage() {
     }
   }
   const totalMinutes = Math.round(sessionMs / 60_000);
+  const todayMinutes = computeStudyMinutes(todayReviewedAts(streakReviewedAts));
   const avgSessionMinutes =
     sessionCount > 0
       ? Math.round((sessionMs / sessionCount / 60_000) * 10) / 10
@@ -873,8 +878,9 @@ export default async function StatsPage() {
           title="学習時間"
           subtitle={`直近100日 · 推定${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`}
         >
-          {/* Session summary */}
-          <div className="grid grid-cols-3 gap-2">
+          {/* Session summary: today's minutes up front, 3-col details below */}
+          <div className="grid grid-cols-2 gap-2">
+            <TimeStat label="今日" value={`${todayMinutes}`} sub="分" />
             <TimeStat
               label="セッション"
               value={`${sessionCount}`}
