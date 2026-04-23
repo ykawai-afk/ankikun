@@ -52,6 +52,9 @@ create index if not exists cards_user_next_review_idx
 create index if not exists cards_user_word_idx
   on public.cards(user_id, word);
 
+create unique index if not exists cards_user_word_unique_idx
+  on public.cards(user_id, lower(word));
+
 create index if not exists cards_frequency_rank_idx
   on public.cards(user_id, frequency_rank);
 

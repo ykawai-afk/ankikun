@@ -18,7 +18,6 @@ import {
   RefreshCw,
   Shuffle,
   Sparkles,
-  Undo2,
   Volume2,
   X,
 } from "lucide-react";
@@ -33,16 +32,7 @@ import type {
 import { haptic } from "@/lib/haptics";
 import { isTypingMatch } from "@/lib/typing";
 import { updateUserNote } from "../cards/card-actions";
-import { grade, undoLastGrade } from "./actions";
-
-const UNDO_WINDOW_MS = 10_000;
-
-type PendingUndo = {
-  card: Card;
-  rating: Rating;
-  expiresAt: number;
-  gradePromise: Promise<void>;
-};
+import { grade } from "./actions";
 
 const REVERSE_TYPING_MIN_INTERVAL = 21;
 
@@ -119,21 +109,6 @@ export function ReviewSession({
   });
   const startRef = useRef<number>(Date.now());
   const [finishedAt, setFinishedAt] = useState<number | null>(null);
-  const [pendingUndo, setPendingUndo] = useState<PendingUndo | null>(null);
-  const [undoBusy, setUndoBusy] = useState(false);
-  const [undoNow, setUndoNow] = useState(Date.now());
-  useEffect(() => {
-    if (!pendingUndo) return;
-    const tick = setInterval(() => setUndoNow(Date.now()), 250);
-    const expire = setTimeout(
-      () => setPendingUndo(null),
-      Math.max(0, pendingUndo.expiresAt - Date.now())
-    );
-    return () => {
-      clearInterval(tick);
-      clearTimeout(expire);
-    };
-  }, [pendingUndo]);
 
   useEffect(() => {
     if (forceCloze) {
@@ -265,61 +240,15 @@ export function ReviewSession({
         });
       }
 
-      const graded = card;
-      const p = new Promise<void>((resolve) => {
-        setTimeout(() => {
-          grade(cardId, r)
-            .catch((e) => console.error("grade failed", e))
-            .finally(() => resolve());
-        }, 0);
-      });
-      setPendingUndo({
-        card: graded,
-        rating: r,
-        expiresAt: Date.now() + UNDO_WINDOW_MS,
-        gradePromise: p,
-      });
-      if (willFinish) p.finally(() => router.refresh());
+      setTimeout(() => {
+        const p = grade(cardId, r).catch((e) => {
+          console.error("grade failed", e);
+        });
+        if (willFinish) p.finally(() => router.refresh());
+      }, 0);
     },
     [card, queue.length, revealed, router, fetchSimilar]
   );
-
-  const undo = useCallback(async () => {
-    if (!pendingUndo || undoBusy) return;
-    setUndoBusy(true);
-    const { card: undoneCard, rating: undoneRating, gradePromise } = pendingUndo;
-    try {
-      await gradePromise;
-      const res = await undoLastGrade(undoneCard.id);
-      if (!res.ok) {
-        console.warn("undo failed");
-        return;
-      }
-      setCounts((c) => ({
-        again: c.again - (undoneRating === 0 ? 1 : 0),
-        hard: c.hard - (undoneRating === 1 ? 1 : 0),
-        good: c.good - (undoneRating === 2 ? 1 : 0),
-        easy: c.easy - (undoneRating === 3 ? 1 : 0),
-      }));
-      setQueue((q) => {
-        const restored: Card = {
-          ...undoneCard,
-          ease_factor: undoneCard.ease_factor,
-          interval_days: undoneCard.interval_days,
-          repetitions: undoneCard.repetitions,
-          status: undoneCard.status,
-        };
-        const filtered = q.filter((c) => c.id !== undoneCard.id);
-        return [restored, ...filtered];
-      });
-      setRevealed(true);
-      setFinishedAt(null);
-      setPendingUndo(null);
-      haptic("light");
-    } finally {
-      setUndoBusy(false);
-    }
-  }, [pendingUndo, undoBusy]);
 
   const speak = useCallback((text: string) => {
     if (!text) return;
@@ -798,33 +727,6 @@ export function ReviewSession({
           </AnimatePresence>
         </article>
       </main>
-
-      {/* Undo toast */}
-      <AnimatePresence>
-        {pendingUndo && (
-          <motion.button
-            key={pendingUndo.card.id + ":" + pendingUndo.expiresAt}
-            type="button"
-            onClick={undo}
-            disabled={undoBusy}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 6 }}
-            transition={{ duration: 0.15 }}
-            className="fixed bottom-32 left-1/2 -translate-x-1/2 z-30 h-8 px-3 rounded-full bg-foreground text-background text-[11px] font-medium inline-flex items-center gap-1.5 shadow-[0_8px_20px_-8px_rgba(0,0,0,0.5)] active:scale-95 transition disabled:opacity-60"
-          >
-            {undoBusy ? (
-              <Loader2 size={11} className="animate-spin" />
-            ) : (
-              <Undo2 size={11} />
-            )}
-            元に戻す
-            <span className="text-[9px] opacity-60 tabular-nums">
-              {Math.max(0, Math.ceil((pendingUndo.expiresAt - undoNow) / 1000))}s
-            </span>
-          </motion.button>
-        )}
-      </AnimatePresence>
 
       {/* Bottom action */}
       <div className="fixed bottom-16 left-0 right-0 z-20 bg-gradient-to-t from-background via-background to-transparent pt-6 pb-3">
