@@ -1,3 +1,6 @@
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isIntroLog } from "@/lib/mastery";
+
 // Single source of truth for new-card intake goals. Hardcoded now; can grow
 // into a settings table later once the numbers feel right.
 export const DAILY_NEW_TARGET = 25;
@@ -141,3 +144,25 @@ export function jstStartOfYear(now: Date = new Date()): Date {
 export function daysBetween(a: Date, b: Date): number {
   return Math.floor((b.getTime() - a.getTime()) / 86_400_000);
 }
+
+// Count how many new cards have been introduced since `since` (defaults to
+// JST start of today). Used by home and review to gate the daily new quota.
+// Both pages previously inlined the same Supabase query — diverging on wall-
+// clock `since` during navigation produced the race the user felt.
+export async function countNewIntrosSince(
+  userId: string,
+  since: Date = jstStartOfDay()
+): Promise<number> {
+  const supabase = createAdminClient();
+  const { count } = await supabase
+    .from("review_logs")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("prev_interval", 0)
+    .eq("prev_ease", 2.5)
+    .gte("reviewed_at", since.toISOString());
+  return count ?? 0;
+}
+
+// Re-exported so callers iterating logs in memory share the same predicate.
+export { isIntroLog };

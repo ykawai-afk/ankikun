@@ -12,10 +12,10 @@ import { PageShell } from "@/components/page-shell";
 import { Heatmap } from "@/components/heatmap";
 import { computeStreak, reviewedTodayCount, countsByDay } from "@/lib/streak";
 import { getLeechCount } from "@/lib/leech";
-import { DAILY_NEW_TARGET } from "@/lib/goals";
+import { DAILY_NEW_TARGET, countNewIntrosSince } from "@/lib/goals";
+import { MASTERED_THRESHOLD_DAYS } from "@/lib/mastery";
 
 export const dynamic = "force-dynamic";
-const MASTERED_THRESHOLD_DAYS = 21;
 const TYPING_MIN_INTERVAL = 14;
 const TYPING_MIN_COUNT = 5;
 
@@ -24,16 +24,15 @@ export default async function Home() {
   const userId = getUserId();
   const now = new Date().toISOString();
   const ninetyDaysAgo = new Date(Date.now() - 100 * 86_400_000).toISOString();
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
 
   const [
     reviewDueRes,
     newAvailRes,
     totalRes,
+    activeRes,
     masteredRes,
     logsRes,
-    newIntrosTodayRes,
+    newIntrosToday,
     leechCount,
     typingPoolRes,
   ] = await Promise.all([
@@ -55,10 +54,18 @@ export default async function Home() {
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId),
+    // Active denominator (non-suspended). Mastered % compares mastered against
+    // what the user is actually still studying, not against lifetime cards.
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
+      .neq("status", "suspended"),
+    supabase
+      .from("cards")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .neq("status", "suspended")
       .gte("interval_days", MASTERED_THRESHOLD_DAYS),
     supabase
       .from("review_logs")
@@ -66,16 +73,7 @@ export default async function Home() {
       .eq("user_id", userId)
       .gte("reviewed_at", ninetyDaysAgo)
       .order("reviewed_at", { ascending: false }),
-    // "New intro today" = a review_log where the card was at its factory state
-    // (interval 0, ease 2.5) right before this grading. Matches only the very
-    // first rating on a brand-new card.
-    supabase
-      .from("review_logs")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("prev_interval", 0)
-      .eq("prev_ease", 2.5)
-      .gte("reviewed_at", startOfToday.toISOString()),
+    countNewIntrosSince(userId),
     getLeechCount(userId),
     supabase
       .from("cards")
@@ -87,11 +85,11 @@ export default async function Home() {
 
   const reviewDue = reviewDueRes.count ?? 0;
   const newAvailable = newAvailRes.count ?? 0;
-  const newIntrosToday = newIntrosTodayRes.count ?? 0;
   const typingPool = typingPoolRes.count ?? 0;
   const total = totalRes.count ?? 0;
+  const active = activeRes.count ?? 0;
   const mastered = masteredRes.count ?? 0;
-  const masteredPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
+  const masteredPct = active > 0 ? Math.round((mastered / active) * 100) : 0;
   const reviewedAts = (logsRes.data ?? []).map((r) => r.reviewed_at as string);
   const streak = computeStreak(reviewedAts);
   const todayCount = reviewedTodayCount(reviewedAts);
@@ -250,7 +248,7 @@ export default async function Home() {
               <span className="text-xl font-semibold tabular-nums text-success">
                 {mastered}
               </span>
-              <span className="text-xs text-muted">/ {total}</span>
+              <span className="text-xs text-muted">/ {active}</span>
             </div>
           </div>
           <div className="h-1 rounded-full bg-success/15 overflow-hidden">

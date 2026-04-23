@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
 import { ReviewSession } from "./review-session";
 import type { Card } from "@/lib/types";
-import { DAILY_NEW_TARGET } from "@/lib/goals";
+import { DAILY_NEW_TARGET, countNewIntrosSince } from "@/lib/goals";
 
 export const dynamic = "force-dynamic";
 
@@ -17,20 +17,10 @@ export default async function ReviewPage() {
   const supabase = createAdminClient();
   const userId = getUserId();
   const now = new Date().toISOString();
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
 
-  // Count how many new cards the user has already introduced today, so we
-  // can serve only the remaining slot (up to DAILY_NEW_TARGET total).
-  const { count: newIntrosTodayCount } = await supabase
-    .from("review_logs")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("prev_interval", 0)
-    .eq("prev_ease", 2.5)
-    .gte("reviewed_at", startOfToday.toISOString());
-
-  const newIntrosToday = newIntrosTodayCount ?? 0;
+  // Only serve remaining new-card slots (up to DAILY_NEW_TARGET today). Shares
+  // the canonical intro-count helper with the home page so both agree.
+  const newIntrosToday = await countNewIntrosSince(userId);
   const newSlotsLeft = Math.max(0, DAILY_NEW_TARGET - newIntrosToday);
 
   // Due review/learning cards first, then a capped slice of new cards.

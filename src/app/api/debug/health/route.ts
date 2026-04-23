@@ -8,6 +8,7 @@ import {
   VOCAB_MILESTONES,
   vocabCurrentLevel,
 } from "@/lib/goals";
+import { MASTERED_THRESHOLD_DAYS } from "@/lib/mastery";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -320,7 +321,7 @@ export async function GET(req: NextRequest) {
   const meanEase =
     c.length > 0 ? c.reduce((s, x) => s + x.ease_factor, 0) / c.length : 0;
   const easeFloor = c.filter((x) => x.ease_factor <= 1.31).length;
-  const mastered = c.filter((x) => x.interval_days >= 21).length;
+  const mastered = c.filter((x) => x.interval_days >= MASTERED_THRESHOLD_DAYS).length;
 
   // Anomalies
   const { data: orphans } = await db

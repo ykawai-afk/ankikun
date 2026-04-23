@@ -19,10 +19,10 @@ import {
   jstStartOfQuarter,
   jstStartOfYear,
 } from "@/lib/goals";
+import { isMastered, isIntroLog } from "@/lib/mastery";
 
 export const dynamic = "force-dynamic";
 
-const MASTERED_THRESHOLD_DAYS = 21;
 const MOMENTUM_DAYS = 30;
 const RETENTION_WEEKS = 8;
 const FORECAST_DAYS = 30;
@@ -140,10 +140,9 @@ export default async function StatsPage() {
   }[];
   // Derive subsets from the single cards fetch.
   const activeRaw = allCards.filter((c) => c.status !== "suspended");
-  const mastered = activeRaw.filter(
-    (c) => c.interval_days >= MASTERED_THRESHOLD_DAYS
-  ).length;
-  const masteredPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
+  const mastered = activeRaw.filter(isMastered).length;
+  const masteredPct =
+    activeRaw.length > 0 ? Math.round((mastered / activeRaw.length) * 100) : 0;
 
   // Forecast window (30 days ahead).
   const forecastCutoffMs = new Date(forecastUntil).getTime();
@@ -161,9 +160,7 @@ export default async function StatsPage() {
     quarterIntrosCount = 0,
     yearIntrosCount = 0;
   for (const l of yearLogs) {
-    const isIntro =
-      (l.prev_interval as number) === 0 && (l.prev_ease as number) === 2.5;
-    if (!isIntro) continue;
+    if (!isIntroLog(l as { prev_interval: number | null; prev_ease: number | null })) continue;
     const t = new Date(l.reviewed_at as string).getTime();
     yearIntrosCount++;
     if (t >= quarterStartMs) quarterIntrosCount++;
@@ -218,9 +215,9 @@ export default async function StatsPage() {
   }
   for (const l of logs) {
     const key = ymdTokyo(new Date(l.reviewed_at as string));
-    const isNewIntro =
-      (l.prev_interval as number) === 0 && (l.prev_ease as number) === 2.5;
-    if (isNewIntro) dayIntros.set(key, (dayIntros.get(key) ?? 0) + 1);
+    if (isIntroLog(l as { prev_interval: number | null; prev_ease: number | null })) {
+      dayIntros.set(key, (dayIntros.get(key) ?? 0) + 1);
+    }
     const g = dayGrades.get(key);
     if (g) g[l.rating as Grade] = (g[l.rating as Grade] ?? 0) + 1;
   }
@@ -248,17 +245,13 @@ export default async function StatsPage() {
   const cefrCounts: Record<CEFRKey | "unknown", number> = {
     A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0, unknown: 0,
   };
-  // Mastered = canonical (≥21d) OR "one-shot correct": answered at least
-  // once and ease never dropped from the 2.5 starting value (never Hard/
-  // Again). Captures cards the user already knew coming in without waiting
-  // weeks for the 21d threshold.
+  // Per-CEFR mastered counts for the vocab estimate. Uses the canonical
+  // mastery definition from src/lib/mastery.ts so this number matches the
+  // mastered counter on the home page.
   const masteredCefrCounts: Record<CEFRKey | "unknown", number> = {
     A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0, unknown: 0,
   };
   const cardDiffLookup = new Map<string, CEFRKey | "unknown">();
-  const isMastered = (c: { interval_days: number; repetitions: number; ease_factor: number }) =>
-    c.interval_days >= MASTERED_THRESHOLD_DAYS ||
-    (c.repetitions >= 1 && c.ease_factor >= 2.5);
 
   for (const c of active) {
     const key = (
@@ -687,7 +680,7 @@ export default async function StatsPage() {
           <SummaryCell
             label="総カード"
             value={total}
-            sub={`定着 ${mastered} / ${total} (${masteredPct}%)`}
+            sub={`定着 ${mastered} / ${active.length} (${masteredPct}%)`}
           />
           <SummaryCell
             label="今日"

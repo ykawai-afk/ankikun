@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import webpush from "web-push";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isIntroLog } from "@/lib/mastery";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -58,8 +59,8 @@ async function buildSummary(userId: string): Promise<Summary> {
 
   const todayLogs = todayLogsRes.data ?? [];
   const todayReviews = todayLogs.length;
-  const todayNewIntros = todayLogs.filter(
-    (l) => (l.prev_interval as number) === 0 && (l.prev_ease as number) === 2.5
+  const todayNewIntros = todayLogs.filter((l) =>
+    isIntroLog(l as { prev_interval: number | null; prev_ease: number | null })
   ).length;
   const nonAgain = todayLogs.filter((l) => (l.rating as number) !== 0).length;
   const retentionPct =
