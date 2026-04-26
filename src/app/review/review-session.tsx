@@ -682,22 +682,12 @@ export function ReviewSession({
                     )}
                   </button>
                 )}
-                {card.etymology && (
-                  <div className="rounded-lg px-3 py-2 flex gap-2 bg-surface-2/40">
-                    <BookOpen
-                      size={11}
-                      className="text-muted shrink-0 mt-0.5 opacity-70"
-                    />
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="text-[8px] uppercase tracking-widest text-muted font-semibold">
-                        語源
-                      </span>
-                      <p className="text-[11px] leading-relaxed text-muted">
-                        {card.etymology}
-                      </p>
-                    </div>
-                  </div>
-                )}
+                <DeepDiveSection
+                  cardId={card.id}
+                  deepDive={card.deep_dive}
+                  busy={deepDiveBusyId === card.id}
+                  onRequest={requestDeepDive}
+                />
                 <UserNoteSection
                   cardId={card.id}
                   note={card.user_note}
@@ -722,12 +712,22 @@ export function ReviewSession({
                     tick={similarTick}
                   />
                 )}
-                <DeepDiveSection
-                  cardId={card.id}
-                  deepDive={card.deep_dive}
-                  busy={deepDiveBusyId === card.id}
-                  onRequest={requestDeepDive}
-                />
+                {card.etymology && (
+                  <div className="rounded-lg px-3 py-2 flex gap-2 bg-surface-2/40">
+                    <BookOpen
+                      size={11}
+                      className="text-muted shrink-0 mt-0.5 opacity-70"
+                    />
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-[8px] uppercase tracking-widest text-muted font-semibold">
+                        語源
+                      </span>
+                      <p className="text-[11px] leading-relaxed text-muted">
+                        {card.etymology}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

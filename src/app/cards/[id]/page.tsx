@@ -224,20 +224,7 @@ export default async function CardDetailPage({
           </section>
         )}
 
-        {card.etymology && (
-          <section className="flex flex-col gap-1.5">
-            <Label>語源</Label>
-            <div className="rounded-lg px-3 py-2 flex gap-2 bg-surface-2/40">
-              <BookOpen
-                size={12}
-                className="text-muted shrink-0 mt-0.5 opacity-70"
-              />
-              <p className="text-[12px] leading-relaxed text-muted">
-                {card.etymology}
-              </p>
-            </div>
-          </section>
-        )}
+        {card.deep_dive && <DeepDiveBlock deepDive={card.deep_dive} />}
 
         {card.user_note && (
           <section className="flex flex-col gap-1.5">
@@ -295,7 +282,20 @@ export default async function CardDetailPage({
           </section>
         )}
 
-        {card.deep_dive && <DeepDiveBlock deepDive={card.deep_dive} />}
+        {card.etymology && (
+          <section className="flex flex-col gap-1.5">
+            <Label>語源</Label>
+            <div className="rounded-lg px-3 py-2 flex gap-2 bg-surface-2/40">
+              <BookOpen
+                size={12}
+                className="text-muted shrink-0 mt-0.5 opacity-70"
+              />
+              <p className="text-[12px] leading-relaxed text-muted">
+                {card.etymology}
+              </p>
+            </div>
+          </section>
+        )}
 
         {imageUrl && (
           <section className="flex flex-col gap-1.5">
