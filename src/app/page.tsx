@@ -9,7 +9,7 @@ import {
   Sparkles,
   Sprout,
 } from "lucide-react";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, selectAll } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
 import { PageShell } from "@/components/page-shell";
 import { Heatmap } from "@/components/heatmap";
@@ -90,12 +90,16 @@ export default async function Home() {
       .eq("user_id", userId)
       .neq("status", "suspended")
       .or(`interval_days.gte.${MASTERED_THRESHOLD_DAYS},was_intro_easy.eq.true`),
-    supabase
-      .from("review_logs")
-      .select("reviewed_at")
-      .eq("user_id", userId)
-      .gte("reviewed_at", ninetyDaysAgo)
-      .order("reviewed_at", { ascending: false }),
+    // 100-day window; paginated so a power week with >1000 reviews
+    // doesn't silently lose old days from the heatmap/streak.
+    selectAll<{ reviewed_at: string }>(() =>
+      supabase
+        .from("review_logs")
+        .select("reviewed_at")
+        .eq("user_id", userId)
+        .gte("reviewed_at", ninetyDaysAgo)
+        .order("reviewed_at", { ascending: false })
+    ),
     countNewIntrosSince(userId),
     getLeechCount(userId),
     supabase
@@ -141,7 +145,7 @@ export default async function Home() {
   const active = activeRes.count ?? 0;
   const mastered = masteredRes.count ?? 0;
   const masteredPct = active > 0 ? Math.round((mastered / active) * 100) : 0;
-  const reviewedAts = (logsRes.data ?? []).map((r) => r.reviewed_at as string);
+  const reviewedAts = logsRes.map((r) => r.reviewed_at);
   const streak = computeStreak(reviewedAts, frozenDays);
   const todayCount = reviewedTodayCount(reviewedAts);
   const heatmap = countsByDay(reviewedAts);

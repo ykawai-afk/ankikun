@@ -1,5 +1,5 @@
 import { unstable_cache } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, selectAll } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
 import { CACHE_TAGS } from "@/lib/cache";
 import { PageShell } from "@/components/page-shell";
@@ -21,7 +21,7 @@ import {
   jstStartOfQuarter,
   jstStartOfYear,
 } from "@/lib/goals";
-import { isMastered, isIntroLog } from "@/lib/mastery";
+import { isMastered, isIntroLog, MASTERED_THRESHOLD_DAYS } from "@/lib/mastery";
 import { computeVocabEstimate } from "@/lib/vocab";
 
 export const dynamic = "force-dynamic";
@@ -64,46 +64,129 @@ const GRADE_META: Record<
   3: { label: "Easy", cls: "bg-sky-500", dot: "bg-sky-500" },
 };
 
-// Server-cached bulk fetch: card snapshot + year-to-date logs + 100-day
-// reviewed_at stream. Invalidated via revalidateTag(CACHE_TAGS.cards /
-// .reviewLogs) whenever an action mutates either table.
+type CardRow = {
+  id: string;
+  interval_days: number;
+  ease_factor: number;
+  repetitions: number;
+  difficulty: string | null;
+  frequency_rank: number | null;
+  was_intro_easy: boolean;
+  next_review_at: string;
+  status: string;
+};
+
+type LogRow = {
+  card_id: string;
+  rating: number;
+  prev_interval: number | null;
+  prev_ease: number | null;
+  reviewed_at: string;
+};
+
+// Server-cached stats snapshot. Two design rules to avoid the silent 1000-
+// row truncation that PostgREST applies to every .select():
+//  1. Every scalar (total cards, all-time review count, intro counts per
+//     window) comes from a count("exact", head: true) query — those bypass
+//     the row cap entirely and stay accurate at any scale.
+//  2. The two row-materializing fetches (cards for distributions/forecast,
+//     logs in the analytical window for retention/momentum/streak/sessions)
+//     go through selectAll() so they paginate past 1000 rows.
+// Invalidated via updateTag(CACHE_TAGS.cards / .reviewLogs) on every grade.
 const getStatsSnapshot = unstable_cache(
-  async (userId: string, yearStartIso: string, ninetyAgoIso: string) => {
+  async (
+    userId: string,
+    dayStartIso: string,
+    weekStartIso: string,
+    quarterStartIso: string,
+    yearStartIso: string,
+    logsFromIso: string
+  ) => {
     const supabase = createAdminClient();
-    const [totalRes, activeCardsRes, logsYearRes, logsStreakRes] =
-      await Promise.all([
-        supabase
-          .from("cards")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", userId),
+
+    // Intro = prev_interval=0 AND prev_ease=2.5, i.e. the card was at
+    // factory state right before this grading. Same predicate as
+    // isIntroLog() in lib/mastery.ts, expressed as a PostgREST filter.
+    const countIntros = (sinceIso: string) =>
+      supabase
+        .from("review_logs")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("prev_interval", 0)
+        .eq("prev_ease", 2.5)
+        .gte("reviewed_at", sinceIso);
+
+    const [
+      totalCardsRes,
+      activeCountRes,
+      masteredCountRes,
+      totalReviewsRes,
+      dayIntrosRes,
+      weekIntrosRes,
+      quarterIntrosRes,
+      yearIntrosRes,
+      cards,
+      recentLogs,
+    ] = await Promise.all([
+      supabase
+        .from("cards")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId),
+      supabase
+        .from("cards")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .neq("status", "suspended"),
+      // Mastered = interval ≥ 21d OR was_intro_easy. Mirrors isMastered()
+      // so home and stats land on the same number.
+      supabase
+        .from("cards")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .neq("status", "suspended")
+        .or(
+          `interval_days.gte.${MASTERED_THRESHOLD_DAYS},was_intro_easy.eq.true`
+        ),
+      supabase
+        .from("review_logs")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId),
+      countIntros(dayStartIso),
+      countIntros(weekStartIso),
+      countIntros(quarterStartIso),
+      countIntros(yearStartIso),
+      selectAll<CardRow>(() =>
         supabase
           .from("cards")
           .select(
             "id, interval_days, ease_factor, repetitions, difficulty, frequency_rank, was_intro_easy, next_review_at, status"
           )
-          .eq("user_id", userId),
+          .eq("user_id", userId)
+      ),
+      selectAll<LogRow>(() =>
         supabase
           .from("review_logs")
           .select("card_id, rating, prev_interval, prev_ease, reviewed_at")
           .eq("user_id", userId)
-          .gte("reviewed_at", yearStartIso)
-          .order("reviewed_at", { ascending: true }),
-        supabase
-          .from("review_logs")
-          .select("reviewed_at")
-          .eq("user_id", userId)
-          .gte("reviewed_at", ninetyAgoIso),
-      ]);
-    return {
-      total: totalRes.count ?? 0,
-      cards: activeCardsRes.data ?? [],
-      yearLogs: logsYearRes.data ?? [],
-      streakReviewedAts: (logsStreakRes.data ?? []).map(
-        (r) => r.reviewed_at as string
+          .gte("reviewed_at", logsFromIso)
+          .order("reviewed_at", { ascending: true })
       ),
+    ]);
+
+    return {
+      totalCards: totalCardsRes.count ?? 0,
+      activeCount: activeCountRes.count ?? 0,
+      masteredCount: masteredCountRes.count ?? 0,
+      totalReviews: totalReviewsRes.count ?? 0,
+      dayIntros: dayIntrosRes.count ?? 0,
+      weekIntros: weekIntrosRes.count ?? 0,
+      quarterIntros: quarterIntrosRes.count ?? 0,
+      yearIntros: yearIntrosRes.count ?? 0,
+      cards,
+      recentLogs,
     };
   },
-  ["stats-snapshot"],
+  ["stats-snapshot-v2"],
   { revalidate: 60, tags: [CACHE_TAGS.cards, CACHE_TAGS.reviewLogs] }
 );
 
@@ -113,11 +196,10 @@ export default async function StatsPage() {
   const momentumFrom = new Date(
     now.getTime() - MOMENTUM_DAYS * 86_400_000
   ).toISOString();
-  const retentionFrom = new Date(
-    now.getTime() - RETENTION_WEEKS * 7 * 86_400_000
-  ).toISOString();
-  const ninetyAgo = new Date(
-    now.getTime() - 100 * 86_400_000
+  // Anchor the analytical-window start to JST day-start so the cache key
+  // for getStatsSnapshot is stable across requests within the same day.
+  const logsFrom = new Date(
+    jstStartOfDay(now).getTime() - 99 * 86_400_000
   ).toISOString();
 
   const forecastUntil = shiftDays(now, FORECAST_DAYS + 1).toISOString();
@@ -128,26 +210,31 @@ export default async function StatsPage() {
 
   const snapshot = await getStatsSnapshot(
     userId,
+    goalDayStart.toISOString(),
+    goalWeekStart.toISOString(),
+    goalQuarterStart.toISOString(),
     goalYearStart.toISOString(),
-    ninetyAgo
+    logsFrom
   );
-  const { total, cards, yearLogs, streakReviewedAts } = snapshot;
-  const allCards = cards as {
-    id: string;
-    interval_days: number;
-    ease_factor: number;
-    repetitions: number;
-    difficulty: string | null;
-    frequency_rank: number | null;
-    was_intro_easy: boolean;
-    next_review_at: string;
-    status: string;
-  }[];
-  // Derive subsets from the single cards fetch.
-  const activeRaw = allCards.filter((c) => c.status !== "suspended");
-  const mastered = activeRaw.filter(isMastered).length;
+  const {
+    totalCards,
+    activeCount,
+    masteredCount: masteredCountFromDb,
+    totalReviews,
+    dayIntros: dayIntrosCount,
+    weekIntros: weekIntrosCount,
+    quarterIntros: quarterIntrosCount,
+    yearIntros: yearIntrosCount,
+    cards,
+    recentLogs,
+  } = snapshot;
+
+  const total = totalCards;
+  // Derive subsets from the single cards fetch (paginated → not capped).
+  const activeRaw = cards.filter((c) => c.status !== "suspended");
+  const mastered = masteredCountFromDb;
   const masteredPct =
-    activeRaw.length > 0 ? Math.round((mastered / activeRaw.length) * 100) : 0;
+    activeCount > 0 ? Math.round((mastered / activeCount) * 100) : 0;
 
   // Forecast window (30 days ahead).
   const forecastCutoffMs = new Date(forecastUntil).getTime();
@@ -155,33 +242,9 @@ export default async function StatsPage() {
     (c) => new Date(c.next_review_at).getTime() <= forecastCutoffMs
   );
 
-  // All year-to-date logs, bucketed into the four goal windows.
-  const totalLogs = yearLogs.length; // "all time" == year for this display
-  const dayStartMs = goalDayStart.getTime();
-  const weekStartMs = goalWeekStart.getTime();
-  const quarterStartMs = goalQuarterStart.getTime();
-  let dayIntrosCount = 0,
-    weekIntrosCount = 0,
-    quarterIntrosCount = 0,
-    yearIntrosCount = 0;
-  for (const l of yearLogs) {
-    if (!isIntroLog(l as { prev_interval: number | null; prev_ease: number | null })) continue;
-    const t = new Date(l.reviewed_at as string).getTime();
-    yearIntrosCount++;
-    if (t >= quarterStartMs) quarterIntrosCount++;
-    if (t >= weekStartMs) weekIntrosCount++;
-    if (t >= dayStartMs) dayIntrosCount++;
-  }
+  const totalLogs = totalReviews;
 
-  // Logs within the 8-week retention window (for recentLogs consumers).
-  const retentionMs = new Date(retentionFrom).getTime();
-  const recentLogsData = yearLogs.filter(
-    (l) => new Date(l.reviewed_at as string).getTime() >= retentionMs
-  );
-  const recentLogs = { data: recentLogsData };
-  const forecastRes = { data: forecastRaw };
-  const activeRes = { data: activeRaw };
-  const streakLogs = { data: streakReviewedAts.map((r) => ({ reviewed_at: r })) };
+  const streakReviewedAts = recentLogs.map((l) => l.reviewed_at);
 
   // Year-end projection: year-to-date avg × remaining days in year + current.
   const yearEnd = new Date(
@@ -199,17 +262,16 @@ export default async function StatsPage() {
   const projectedYear = Math.round(
     yearIntrosCount + recentAvgPerDay * daysLeftInYear
   );
-  const streak = computeStreak(
-    (streakLogs.data ?? []).map((r) => r.reviewed_at as string)
-  );
+  const streak = computeStreak(streakReviewedAts);
   const todayKey = ymdTokyo(now);
-  const todayCount = (streakLogs.data ?? []).filter(
-    (r) => ymdTokyo(new Date(r.reviewed_at as string)) === todayKey
+  const todayCount = streakReviewedAts.filter(
+    (r) => ymdTokyo(new Date(r)) === todayKey
   ).length;
 
-  // === Momentum: per-day new intros + per-day rating breakdown (30d) ===
-  const logs = (recentLogs.data ?? []).filter(
-    (l) => new Date(l.reviewed_at as string).getTime() >= new Date(momentumFrom).getTime()
+  // === Momentum: per-day intros + rating breakdown over the last 30 days ===
+  const momentumStartMs = new Date(momentumFrom).getTime();
+  const logs = recentLogs.filter(
+    (l) => new Date(l.reviewed_at).getTime() >= momentumStartMs
   );
   const dayIntros = new Map<string, number>();
   const dayGrades = new Map<string, Record<Grade, number>>();
@@ -219,11 +281,11 @@ export default async function StatsPage() {
     dayGrades.set(key, { 0: 0, 1: 0, 2: 0, 3: 0 });
   }
   for (const l of logs) {
-    const key = ymdTokyo(new Date(l.reviewed_at as string));
-    if (isIntroLog(l as { prev_interval: number | null; prev_ease: number | null })) {
-      dayIntros.set(key, (dayIntros.get(key) ?? 0) + 1);
+    const dayKey = ymdTokyo(new Date(l.reviewed_at));
+    if (isIntroLog(l)) {
+      dayIntros.set(dayKey, (dayIntros.get(dayKey) ?? 0) + 1);
     }
-    const g = dayGrades.get(key);
+    const g = dayGrades.get(dayKey);
     if (g) g[l.rating as Grade] = (g[l.rating as Grade] ?? 0) + 1;
   }
   const momentumDays = [...dayIntros.keys()].sort();
@@ -236,26 +298,12 @@ export default async function StatsPage() {
   );
 
   // === Interval distribution ===
-  const active = (activeRes.data ?? []) as {
-    id: string;
-    interval_days: number;
-    ease_factor: number;
-    repetitions: number;
-    difficulty: string | null;
-    frequency_rank: number | null;
-    was_intro_easy: boolean;
-  }[];
+  const active = activeRaw;
 
   // === CEFR distribution + vocabulary estimate ===
   const cefrOrder = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
   type CEFRKey = (typeof cefrOrder)[number];
   const cefrCounts: Record<CEFRKey | "unknown", number> = {
-    A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0, unknown: 0,
-  };
-  // Per-CEFR mastered counts for the vocab estimate. Uses the canonical
-  // mastery definition from src/lib/mastery.ts so this number matches the
-  // mastered counter on the home page.
-  const masteredCefrCounts: Record<CEFRKey | "unknown", number> = {
     A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0, unknown: 0,
   };
   const cardDiffLookup = new Map<string, CEFRKey | "unknown">();
@@ -268,17 +316,19 @@ export default async function StatsPage() {
     ) as CEFRKey | "unknown";
     cardDiffLookup.set(c.id, key);
     cefrCounts[key]++;
-    if (isMastered(c)) masteredCefrCounts[key]++;
   }
 
   // Per-CEFR accuracy over the retention window (last 8 weeks). Used to
   // down-weight contributions from levels where the user is still shaky.
+  const retentionFromMs =
+    now.getTime() - RETENTION_WEEKS * 7 * 86_400_000;
   const cefrReviewTotals: Record<string, number> = {};
   const cefrNonAgain: Record<string, number> = {};
-  for (const l of recentLogs.data ?? []) {
-    const lv = cardDiffLookup.get(l.card_id as string) ?? "unknown";
+  for (const l of recentLogs) {
+    if (new Date(l.reviewed_at).getTime() < retentionFromMs) continue;
+    const lv = cardDiffLookup.get(l.card_id) ?? "unknown";
     cefrReviewTotals[lv] = (cefrReviewTotals[lv] ?? 0) + 1;
-    if ((l.rating as number) !== 0) {
+    if (l.rating !== 0) {
       cefrNonAgain[lv] = (cefrNonAgain[lv] ?? 0) + 1;
     }
   }
@@ -301,10 +351,9 @@ export default async function StatsPage() {
     .map((c) => ({ frequency_rank: c.frequency_rank }));
   const vocabResult = computeVocabEstimate(masteredRankedCards);
   const vocabEstimate = vocabResult.total;
-  const masteredCount = Object.values(masteredCefrCounts).reduce(
-    (a, b) => a + b,
-    0
-  );
+  // Authoritative mastered total from the count query — keeps the home
+  // and stats counters in lockstep regardless of pagination.
+  const masteredCount = masteredCountFromDb;
   const currentLevel = vocabCurrentLevel(vocabEstimate);
   const nextLevel = VOCAB_MILESTONES.find((m) => m.value > vocabEstimate);
   const toNext = nextLevel ? nextLevel.value - vocabEstimate : null;
@@ -355,11 +404,11 @@ export default async function StatsPage() {
   for (let i = RETENTION_WEEKS - 1; i >= 0; i--) {
     const anchor = shiftDays(startOfWeek(now), -i * 7);
     const end = shiftDays(anchor, 7);
-    const inRange = (recentLogs.data ?? []).filter((l) => {
-      const t = new Date(l.reviewed_at as string).getTime();
+    const inRange = recentLogs.filter((l) => {
+      const t = new Date(l.reviewed_at).getTime();
       return t >= anchor.getTime() && t < end.getTime();
     });
-    const nonAgain = inRange.filter((l) => (l.rating as number) !== 0).length;
+    const nonAgain = inRange.filter((l) => l.rating !== 0).length;
     const totalW = inRange.length;
     weeks.push({
       label: `${anchor.getMonth() + 1}/${anchor.getDate()}`,
@@ -385,8 +434,8 @@ export default async function StatsPage() {
     forecast.push({ key, count: 0, overdue: false });
   }
   const todayForecastKey = forecastKeys[0];
-  for (const c of forecastRes.data ?? []) {
-    const t = new Date(c.next_review_at as string);
+  for (const c of forecastRaw) {
+    const t = new Date(c.next_review_at);
     const overdue = t.getTime() <= now.getTime();
     const bucketKey = overdue ? todayForecastKey : ymdTokyo(t);
     const slot = forecast.find((f) => f.key === bucketKey);
@@ -399,8 +448,8 @@ export default async function StatsPage() {
   const forecastTotal = forecast.reduce((s, f) => s + f.count, 0);
 
   // === Hour-of-day distribution (A) + session metrics (B, D) ===
-  const streakStamps = (streakLogs.data ?? [])
-    .map((l) => new Date(l.reviewed_at as string).getTime())
+  const streakStamps = streakReviewedAts
+    .map((iso) => new Date(iso).getTime())
     .sort((a, b) => a - b);
 
   const byHour = new Array(24).fill(0);
