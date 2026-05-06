@@ -8,6 +8,12 @@ export const WEEKLY_NEW_TARGET = 150;
 export const QUARTERLY_NEW_TARGET = 1500;
 export const YEARLY_NEW_TARGET = 6000;
 
+// Soft ceiling on a single day's review session (new + due review combined).
+// Once this many cards have been graded today, the session is "done" — any
+// remaining due reviews quietly roll into tomorrow's queue. Picked so a full
+// session lands around 15-20 minutes; continuity beats throughput.
+export const DAILY_SESSION_TARGET = 50;
+
 // Vocabulary size estimation. Baseline is the pre-Ankikun floor (鉄壁完遂
 // @ 一橋 → 減衰後). Card weights only count words the user likely didn't
 // already have — so the cheaper CEFR levels contribute nothing (rehearsal

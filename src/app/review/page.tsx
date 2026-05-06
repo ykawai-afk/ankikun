@@ -3,12 +3,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/user";
 import { ReviewSession } from "./review-session";
 import type { Card } from "@/lib/types";
-import { DAILY_NEW_TARGET, countNewIntrosSince } from "@/lib/goals";
+import {
+  DAILY_NEW_TARGET,
+  DAILY_SESSION_TARGET,
+  countNewIntrosSince,
+  jstStartOfDay,
+} from "@/lib/goals";
 
 export const dynamic = "force-dynamic";
 
-// All overdue learning/review cards must be cleared to keep SRS healthy, so
-// we cap generously to avoid runaway queues but don't aim to be restrictive.
+// Cap on how many overdue cards we even consider for slicing into today's
+// session — keeps the query bounded when a long gap has piled up reviews.
 const REVIEW_FETCH_CAP = 300;
 const CARD_COLUMNS =
   "id, user_id, word, reading, part_of_speech, definition_ja, definition_en, example_en, example_ja, source_image_path, source_context, etymology, user_note, audio_url, difficulty, image_url, related_words, extra_examples, deep_dive, tags, ease_factor, interval_days, repetitions, next_review_at, last_reviewed_at, status, created_at, updated_at";
@@ -17,24 +22,39 @@ export default async function ReviewPage() {
   const supabase = createAdminClient();
   const userId = getUserId();
   const now = new Date().toISOString();
+  const dayStart = jstStartOfDay().toISOString();
 
-  // Only serve remaining new-card slots (up to DAILY_NEW_TARGET today). Shares
-  // the canonical intro-count helper with the home page so both agree.
-  const newIntrosToday = await countNewIntrosSince(userId);
+  // Already-graded reviews today eat into the session ceiling. Counting raw
+  // log rows (not unique cards) matches the home progress meter.
+  const [{ count: gradedTodayCount }, newIntrosToday] = await Promise.all([
+    supabase
+      .from("review_logs")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .gte("reviewed_at", dayStart),
+    countNewIntrosSince(userId),
+  ]);
+  const slotsLeftToday = Math.max(
+    0,
+    DAILY_SESSION_TARGET - (gradedTodayCount ?? 0)
+  );
   const newSlotsLeft = Math.max(0, DAILY_NEW_TARGET - newIntrosToday);
 
-  // Due review/learning cards first, then a capped slice of new cards.
+  // Due review/learning cards first (oldest expiry wins), then fill remaining
+  // session slots with new cards.
   const [reviewRes, newRes] = await Promise.all([
-    supabase
-      .from("cards")
-      .select(CARD_COLUMNS)
-      .eq("user_id", userId)
-      .in("status", ["learning", "review"])
-      .lte("next_review_at", now)
-      .order("next_review_at", { ascending: true })
-      .limit(REVIEW_FETCH_CAP)
-      .returns<Card[]>(),
-    newSlotsLeft > 0
+    slotsLeftToday > 0
+      ? supabase
+          .from("cards")
+          .select(CARD_COLUMNS)
+          .eq("user_id", userId)
+          .in("status", ["learning", "review"])
+          .lte("next_review_at", now)
+          .order("next_review_at", { ascending: true })
+          .limit(Math.min(REVIEW_FETCH_CAP, slotsLeftToday))
+          .returns<Card[]>()
+      : Promise.resolve({ data: [] as Card[] }),
+    newSlotsLeft > 0 && slotsLeftToday > 0
       ? supabase
           .from("cards")
           .select(CARD_COLUMNS)
@@ -42,14 +62,16 @@ export default async function ReviewPage() {
           .eq("status", "new")
           .lte("next_review_at", now)
           .order("next_review_at", { ascending: true })
-          .limit(newSlotsLeft)
+          .limit(Math.min(newSlotsLeft, slotsLeftToday))
           .returns<Card[]>()
       : Promise.resolve({ data: [] as Card[] }),
   ]);
 
   const reviewCards = reviewRes.data ?? [];
-  const newCards = newRes.data ?? [];
-  const queue = [...reviewCards, ...newCards];
+  const reviewSlice = reviewCards.slice(0, slotsLeftToday);
+  const remainingSlots = Math.max(0, slotsLeftToday - reviewSlice.length);
+  const newCards = (newRes.data ?? []).slice(0, remainingSlots);
+  const queue = [...reviewSlice, ...newCards];
   const totalDue = queue.length;
 
   if (queue.length === 0) {

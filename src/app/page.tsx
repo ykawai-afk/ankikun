@@ -15,7 +15,11 @@ import { PageShell } from "@/components/page-shell";
 import { Heatmap } from "@/components/heatmap";
 import { computeStreak, reviewedTodayCount, countsByDay } from "@/lib/streak";
 import { getLeechCount } from "@/lib/leech";
-import { DAILY_NEW_TARGET, countNewIntrosSince } from "@/lib/goals";
+import {
+  DAILY_NEW_TARGET,
+  DAILY_SESSION_TARGET,
+  countNewIntrosSince,
+} from "@/lib/goals";
 import { MASTERED_THRESHOLD_DAYS } from "@/lib/mastery";
 import { loadUserStateWithRefill, loadFrozenDays } from "@/lib/streak-freeze";
 import { FreezeStreakButton } from "@/components/freeze-streak-button";
@@ -175,11 +179,22 @@ export default async function Home() {
     0,
     Math.min(DAILY_NEW_TARGET - newIntrosToday, newAvailable)
   );
-  const newPct = Math.min(
-    100,
-    Math.round((newIntrosToday / DAILY_NEW_TARGET) * 100)
+  // Session cap is the headline: stop pushing the user once they've graded
+  // DAILY_SESSION_TARGET cards today, even if more are technically due.
+  const slotsLeftToday = Math.max(0, DAILY_SESSION_TARGET - todayCount);
+  const sessionReviewSlots = Math.min(reviewDue, slotsLeftToday);
+  const sessionNewSlots = Math.min(
+    newRemainingToday,
+    Math.max(0, slotsLeftToday - sessionReviewSlots)
   );
-  const todayDone = newIntrosToday >= DAILY_NEW_TARGET && reviewDue === 0;
+  const sessionRemaining = sessionReviewSlots + sessionNewSlots;
+  const sessionPct = Math.min(
+    100,
+    Math.round((todayCount / DAILY_SESSION_TARGET) * 100)
+  );
+  const todayDone =
+    todayCount >= DAILY_SESSION_TARGET ||
+    (reviewDue === 0 && newRemainingToday === 0);
 
   return (
     <PageShell>
@@ -209,7 +224,7 @@ export default async function Home() {
           <FreezeStreakButton day={yesterdayYmd} />
         )}
 
-        {/* Today panel: new quota + due review */}
+        {/* Today panel: session-cap progress + remaining mix */}
         <section className="flex flex-col gap-2.5">
           <Link
             href="/review"
@@ -217,7 +232,7 @@ export default async function Home() {
           >
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase tracking-widest text-muted font-semibold">
-                今日やるべき
+                今日のノルマ
               </span>
               {todayDone && (
                 <span className="text-[10px] font-semibold text-success inline-flex items-center gap-0.5">
@@ -226,60 +241,68 @@ export default async function Home() {
               )}
             </div>
 
-            {/* 新規 quota */}
+            {/* Session cap progress */}
             <div className="flex flex-col gap-1">
               <div className="flex items-baseline justify-between">
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold">
-                  <Sparkles size={11} className="text-accent" />
-                  新規
+                  <Flame size={11} className="text-flame" />
+                  セッション
                 </span>
                 <span className="text-[11px] tabular-nums">
-                  <span className="font-semibold">{newIntrosToday}</span>
-                  <span className="text-muted"> / {DAILY_NEW_TARGET}</span>
+                  <span className="font-semibold">{todayCount}</span>
+                  <span className="text-muted"> / {DAILY_SESSION_TARGET}</span>
                 </span>
               </div>
               <div className="h-1.5 rounded-full bg-border/40 overflow-hidden">
                 <div
-                  style={{ width: `${newPct}%` }}
+                  style={{ width: `${sessionPct}%` }}
                   className="h-full bg-accent transition-[width] duration-500 ease-out"
                 />
               </div>
               <span className="text-[10px] text-muted">
-                {newRemainingToday > 0
-                  ? `残り${newRemainingToday}枚`
-                  : newIntrosToday >= DAILY_NEW_TARGET
-                    ? "今日分の新規は達成"
-                    : "新規カードなし"}
+                {todayDone
+                  ? "今日のノルマは達成 — 余力があればおかわりOK"
+                  : `残り${sessionRemaining}枚で完了`}
               </span>
             </div>
 
-            {/* 復習 (variable) */}
-            <div className="flex items-center justify-between pt-1 border-t border-border/60">
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold">
-                <Flame size={11} className="text-flame" />
-                復習
-              </span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-semibold tabular-nums">
-                  {reviewDue}
+            {/* Remaining session composition */}
+            {!todayDone && sessionRemaining > 0 && (
+              <div className="flex items-center justify-between pt-1 border-t border-border/60 text-[11px]">
+                <span className="inline-flex items-center gap-1 text-muted">
+                  <Flame size={10} className="text-flame" />
+                  復習 <span className="font-semibold tabular-nums text-foreground">{sessionReviewSlots}</span>
                 </span>
-                <span className="text-[10px] text-muted">枚</span>
+                <span className="inline-flex items-center gap-1 text-muted">
+                  <Sparkles size={10} className="text-accent" />
+                  新規 <span className="font-semibold tabular-nums text-foreground">{sessionNewSlots}</span>
+                </span>
                 <ArrowRight
                   size={12}
-                  className="ml-1 text-muted group-hover:translate-x-0.5 group-hover:text-accent transition"
+                  className="text-muted group-hover:translate-x-0.5 group-hover:text-accent transition"
                 />
               </div>
-            </div>
+            )}
+
             {/* Forgetting meter: loss-framed preview of tomorrow's load
                 if today is skipped. Only shown when there's something
                 to lose — silent when no cards due soon. */}
-            {tomorrowAdds > 0 && (
+            {tomorrowAdds > 0 && !todayDone && (
               <div className="text-[10px] text-muted leading-relaxed">
                 今日サボると明日{" "}
                 <span className="font-semibold text-flame tabular-nums">
                   +{tomorrowAdds}枚
                 </span>{" "}
                 が期限切れに
+              </div>
+            )}
+
+            {/* Backlog hint: when the session is full but more reviews are
+                actually due, surface it gently so the user knows the cap
+                is throttling, not breaking. */}
+            {reviewDue > sessionReviewSlots && (
+              <div className="text-[10px] text-muted leading-relaxed">
+                期限切れ <span className="font-semibold tabular-nums text-flame">{reviewDue}</span>枚あり · 残り{Math.max(0, reviewDue - sessionReviewSlots)}枚は明日のキューへ
               </div>
             )}
           </Link>
