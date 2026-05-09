@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { revalidatePath, updateTag } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CACHE_TAGS } from "@/lib/cache";
 
@@ -65,6 +65,6 @@ export async function POST(req: NextRequest) {
 
   revalidatePath("/");
   revalidatePath("/review/expression");
-  updateTag(CACHE_TAGS.cards);
+  revalidateTag(CACHE_TAGS.cards);
   return NextResponse.json({ ok: true, cardId: data?.id });
 }
