@@ -35,6 +35,7 @@ export function CardDetailActions({ card }: { card: Card }) {
 
   const modalRow: CardRow = {
     id: card.id,
+    card_type: card.card_type,
     word: card.word,
     reading: card.reading,
     part_of_speech: card.part_of_speech,

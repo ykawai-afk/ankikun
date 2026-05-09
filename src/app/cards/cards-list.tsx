@@ -3,14 +3,16 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
-import { Clock, NotebookPen, Search, Sparkles } from "lucide-react";
+import { BookOpen, Clock, MessageSquare, NotebookPen, Search, Sparkles } from "lucide-react";
 import type { Card } from "@/lib/types";
 
 type SortMode = "due" | "new";
+type TypeFilter = "all" | "word" | "expression";
 
 export type CardRow = Pick<
   Card,
   | "id"
+  | "card_type"
   | "word"
   | "reading"
   | "part_of_speech"
@@ -50,6 +52,16 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
   const [statusFilter, setStatusFilter] = useState<"all" | Card["status"]>("all");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("due");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+
+  const wordCount = useMemo(
+    () => cards.filter((c) => (c.card_type ?? "word") === "word").length,
+    [cards]
+  );
+  const expressionCount = useMemo(
+    () => cards.filter((c) => c.card_type === "expression").length,
+    [cards]
+  );
 
   const allTags = useMemo(() => {
     const set = new Set<string>();
@@ -61,6 +73,8 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
 
   const filtered = useMemo(() => {
     const base = cards.filter((c) => {
+      const cardType = c.card_type ?? "word";
+      if (typeFilter !== "all" && cardType !== typeFilter) return false;
       if (statusFilter !== "all" && c.status !== statusFilter) return false;
       if (tagFilter && !(c.tags ?? []).includes(tagFilter)) return false;
       if (!query.trim()) return true;
@@ -84,10 +98,31 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
       );
     }
     return sorted;
-  }, [cards, statusFilter, tagFilter, query, sortMode]);
+  }, [cards, typeFilter, statusFilter, tagFilter, query, sortMode]);
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Type filter (word / expression / all) */}
+      <div className="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-surface-2">
+        <TypeTab
+          active={typeFilter === "all"}
+          onClick={() => setTypeFilter("all")}
+          label={`すべて · ${cards.length}`}
+        />
+        <TypeTab
+          active={typeFilter === "word"}
+          onClick={() => setTypeFilter("word")}
+          icon={<BookOpen size={11} />}
+          label={`単語 · ${wordCount}`}
+        />
+        <TypeTab
+          active={typeFilter === "expression"}
+          onClick={() => setTypeFilter("expression")}
+          icon={<MessageSquare size={11} />}
+          label={`表現 · ${expressionCount}`}
+        />
+      </div>
+
       {/* Sort toggle */}
       <div className="inline-flex self-start rounded-full bg-surface-2 p-0.5 gap-0.5">
         <SortTab
@@ -213,6 +248,15 @@ export function CardsList({ cards }: { cards: CardRow[] }) {
                   )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  {c.card_type === "expression" && (
+                    <span
+                      className="text-[9px] uppercase tracking-widest font-semibold px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-700 dark:text-violet-300 inline-flex items-center gap-0.5"
+                      aria-label="表現カード"
+                    >
+                      <MessageSquare size={9} />
+                      表現
+                    </span>
+                  )}
                   {c.user_note && (
                     <NotebookPen
                       size={11}
@@ -270,6 +314,34 @@ function SortTab({
       onClick={onClick}
       aria-pressed={active}
       className={`h-7 px-3 rounded-full text-[11px] font-medium inline-flex items-center gap-1 transition active:scale-95 ${
+        active
+          ? "bg-background text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
+          : "text-muted hover:text-foreground"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function TypeTab({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon?: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`h-9 rounded-xl text-[12px] font-medium inline-flex items-center justify-center gap-1.5 transition active:scale-95 ${
         active
           ? "bg-background text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
           : "text-muted hover:text-foreground"
