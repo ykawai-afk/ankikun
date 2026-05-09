@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { CACHE_TAGS } from "@/lib/cache";
 
 export const runtime = "nodejs";
 export const maxDuration = 10;
@@ -65,6 +64,5 @@ export async function POST(req: NextRequest) {
 
   revalidatePath("/");
   revalidatePath("/review/expression");
-  revalidateTag(CACHE_TAGS.cards);
   return NextResponse.json({ ok: true, cardId: data?.id });
 }
