@@ -163,7 +163,11 @@ export async function POST(req: NextRequest) {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: msg }, { status: 502 });
+    console.error("[digest] Haiku call failed:", msg);
+    return NextResponse.json(
+      { error: "haiku call failed", detail: msg },
+      { status: 502 }
+    );
   }
 
   const harvested = result.parsed_output?.expressions ?? [];
@@ -187,11 +191,27 @@ export async function POST(req: NextRequest) {
     definition_ja: h.note.trim(),
   }));
 
-  const { data: insertedRows, error: insertErr } = await supabase
-    .from("cards")
-    .insert(inserts)
-    .select("id, word")
-    .returns<Array<{ id: string; word: string }>>();
+  let insertedRows;
+  let insertErr;
+  try {
+    const r = await supabase
+      .from("cards")
+      .insert(inserts)
+      .select("id, word")
+      .returns<Array<{ id: string; word: string }>>();
+    insertedRows = r.data;
+    insertErr = r.error;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[digest] insert threw:", msg);
+    return NextResponse.json(
+      { error: "supabase insert threw", detail: msg },
+      { status: 500 }
+    );
+  }
+  if (insertErr) {
+    console.error("[digest] insert error:", insertErr);
+  }
 
   // If a bulk insert fails on any unique violation, Postgres rolls back
   // the entire batch by default. Fall back to row-by-row inserts so a
