@@ -15,6 +15,7 @@ export default async function RootReviewListPage() {
     .from("cards")
     .select("id, word, deep_dive, interval_days, status")
     .eq("user_id", userId)
+    .eq("card_type", "word")
     .neq("status", "suspended")
     .not("deep_dive", "is", null);
 

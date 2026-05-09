@@ -29,6 +29,7 @@ export default async function RootReviewSessionPage({
     .from("cards")
     .select(CARD_COLUMNS)
     .eq("user_id", userId)
+    .eq("card_type", "word")
     .neq("status", "suspended")
     .not("deep_dive", "is", null)
     .returns<Card[]>();

@@ -41,6 +41,7 @@ async function getEaseFloorCardIds(userId: string): Promise<string[]> {
     .from("cards")
     .select("id")
     .eq("user_id", userId)
+    .eq("card_type", "word")
     .neq("status", "suspended")
     .lte("ease_factor", EASE_FLOOR_THRESHOLD);
   return (data ?? []).map((r) => r.id);
@@ -69,6 +70,7 @@ async function getCombinedLeechIds(userId: string): Promise<string[]> {
     .from("cards")
     .select("id")
     .eq("user_id", userId)
+    .eq("card_type", "word")
     .neq("status", "suspended")
     .in("id", ranked);
   const liveSet = new Set((live ?? []).map((r) => r.id as string));

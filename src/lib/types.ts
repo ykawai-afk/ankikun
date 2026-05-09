@@ -1,5 +1,7 @@
 export type CardStatus = "new" | "learning" | "review" | "suspended";
 
+export type CardType = "word" | "expression";
+
 export type CEFRLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 
 export type RelatedWord = {
@@ -34,6 +36,7 @@ export type DeepDive = {
 export type Card = {
   id: string;
   user_id: string;
+  card_type: CardType;
   word: string;
   reading: string | null;
   part_of_speech: string | null;

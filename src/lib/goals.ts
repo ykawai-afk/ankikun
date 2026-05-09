@@ -14,6 +14,12 @@ export const YEARLY_NEW_TARGET = 6000;
 // session lands around 15-20 minutes; continuity beats throughput.
 export const DAILY_SESSION_TARGET = 50;
 
+// Per-day cap on expression-card reviews. Each one becomes a 1-2min ChatGPT
+// voice roleplay session, so the lane is throughput-bound, not appetite-
+// bound. 8 is the overnight ritual size — larger and the ChatGPT context
+// switch fatigues, smaller and the corpus doesn't compound.
+export const DAILY_EXPRESSION_TARGET = 8;
+
 // Vocabulary size estimation. Baseline is the pre-Ankikun floor (鉄壁完遂
 // @ 一橋 → 減衰後). Card weights only count words the user likely didn't
 // already have — so the cheaper CEFR levels contribute nothing (rehearsal

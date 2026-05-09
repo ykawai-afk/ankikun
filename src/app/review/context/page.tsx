@@ -24,6 +24,7 @@ export default async function ContextReviewPage() {
     .from("cards")
     .select(CARD_COLUMNS)
     .eq("user_id", userId)
+    .eq("card_type", "word")
     .neq("status", "suspended")
     .not("example_en", "is", null)
     .gte("interval_days", MIN_INTERVAL)

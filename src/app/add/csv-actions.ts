@@ -16,6 +16,11 @@ export type CsvCard = {
   etymology: string | null;
 };
 
+export type CsvExpression = {
+  expression: string;
+  note: string;
+};
+
 export type CsvAddResult =
   | { ok: true; cardsCreated: number }
   | { ok: false; error: string };
@@ -36,6 +41,7 @@ export async function addFromCsv(cards: CsvCard[]): Promise<CsvAddResult> {
 
   const rows = cards.map((c) => ({
     user_id: userId,
+    card_type: "word" as const,
     word: c.word.trim(),
     reading: c.reading?.trim() || null,
     part_of_speech: c.part_of_speech?.trim() || null,
@@ -53,4 +59,40 @@ export async function addFromCsv(cards: CsvCard[]): Promise<CsvAddResult> {
   revalidatePath("/cards");
   updateTag(CACHE_TAGS.cards);
   return { ok: true, cardsCreated: rows.length };
+}
+
+// Bulk-load expression cards (English phrases practiced via ChatGPT voice
+// roleplay). Maps the user-facing CSV columns onto the existing cards table:
+// word = English expression, definition_ja = Japanese situational note.
+export async function addExpressionsFromCsv(
+  rows: CsvExpression[]
+): Promise<CsvAddResult> {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { ok: false, error: "有効な行がありません" };
+  }
+  if (rows.length > 500) {
+    return {
+      ok: false,
+      error: `一度に追加できるのは500件までです（${rows.length}件）`,
+    };
+  }
+
+  const userId = getUserId();
+  const supabase = createAdminClient();
+
+  const inserts = rows.map((r) => ({
+    user_id: userId,
+    card_type: "expression" as const,
+    word: r.expression.trim(),
+    definition_ja: r.note.trim(),
+  }));
+
+  const { error } = await supabase.from("cards").insert(inserts);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/");
+  revalidatePath("/cards");
+  revalidatePath("/review/expression");
+  updateTag(CACHE_TAGS.cards);
+  return { ok: true, cardsCreated: inserts.length };
 }
