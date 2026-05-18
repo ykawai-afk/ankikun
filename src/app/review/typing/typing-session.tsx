@@ -8,6 +8,7 @@ import { ArrowLeft, Check, X } from "lucide-react";
 import type { Card } from "@/lib/types";
 import { haptic } from "@/lib/haptics";
 import { isTypingMatch } from "@/lib/typing";
+import { SourceBadge } from "@/components/source-badge";
 import { grade } from "../actions";
 
 type Phase = "input" | "correct" | "wrong";
@@ -202,9 +203,16 @@ export function TypingSession({ initialQueue }: { initialQueue: Card[] }) {
           transition={{ duration: 0.15 }}
           className="flex-1 flex flex-col items-center justify-center gap-4 py-5"
         >
-          <span className="text-[9px] uppercase tracking-widest text-accent font-semibold">
-            {prompt.label}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] uppercase tracking-widest text-accent font-semibold">
+              {prompt.label}
+            </span>
+            <SourceBadge
+              curriculumSource={card.curriculum_source}
+              derivationType={card.derivation_type}
+              size="xs"
+            />
+          </div>
 
           <div className="rounded-2xl bg-surface-2 px-4 py-4 border-l-2 border-accent w-full max-w-md flex flex-col gap-1.5">
             {prompt.main}

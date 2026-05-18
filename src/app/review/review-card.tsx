@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { Card, Rating } from "@/lib/types";
+import { SourceBadge } from "@/components/source-badge";
 import { grade } from "./actions";
 
 const BUTTONS: { rating: Rating; label: string; tone: string }[] = [
@@ -43,7 +44,13 @@ export function ReviewCard({ card, remaining }: { card: Card; remaining: number 
     <main className="flex flex-1 flex-col items-center p-6 gap-6 max-w-xl mx-auto w-full">
       <header className="w-full flex items-center justify-between text-sm text-zinc-500">
         <Link href="/">← ホーム</Link>
-        <span>残り {remaining}</span>
+        <div className="flex items-center gap-2">
+          <SourceBadge
+            curriculumSource={card.curriculum_source}
+            derivationType={card.derivation_type}
+          />
+          <span>残り {remaining}</span>
+        </div>
       </header>
 
       <section className="flex-1 w-full flex flex-col items-center justify-center gap-6 text-center">

@@ -57,6 +57,11 @@ export type Card = {
   extra_examples: ExtraExample[] | null;
   deep_dive: DeepDive | null;
   tags: string[] | null;
+  curriculum_source: string | null;
+  strategic_theme: string | null;
+  derivation_type: string | null;
+  family_pack_id: string | null;
+  wild_uses_count: number;
   ease_factor: number;
   interval_days: number;
   repetitions: number;
