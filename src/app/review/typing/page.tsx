@@ -7,24 +7,24 @@ import type { Card } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 const LIMIT = 20;
-// Words go through passive recognition first — they only earn the
-// production drill once SRS has rotated them to a 14-day interval.
-const WORD_MIN_INTERVAL = 14;
 const CARD_COLUMNS =
   "id, user_id, card_type, word, reading, part_of_speech, definition_ja, definition_en, example_en, example_ja, source_image_path, source_context, etymology, user_note, audio_url, difficulty, image_url, related_words, extra_examples, deep_dive, tags, ease_factor, interval_days, repetitions, next_review_at, last_reviewed_at, status, created_at, updated_at";
 
 export default async function TypingPage() {
   const supabase = createAdminClient();
   const userId = getUserId();
+  const now = new Date().toISOString();
 
-  // Phrases skip the interval gate: production-first is the design — knowing
-  // a phrase passively in 14 days is too slow, the whole point of an
-  // expression card is that it should come out of your mouth/keyboard now.
-  //
-  // Restrict expressions to chat-organic (phrases the user actually used in
-  // a Claude Code chat). Bulk curriculum phrases sit dormant until the
-  // user re-encounters them via chat — surfacing them in the daily drill
-  // dilutes the signal of "I used this with Claude".
+  // Typing drill semantics (post-2026-05-18 reset):
+  // - Honour SRS `next_review_at`: never re-surface a card the user
+  //   already cleared today. Without this filter the same word showed
+  //   up multiple times per session.
+  // - No interval gate for words. The previous 14-day passive-first
+  //   rule was throttling production access on a 4k-card year-end push.
+  //   New / learning / review status all flow through; SRS still
+  //   schedules the cadence.
+  // - Expressions stay chat-organic only — bulk curriculum phrases live
+  //   outside the daily drill.
   const [wordRes, phraseRes] = await Promise.all([
     supabase
       .from("cards")
@@ -32,7 +32,7 @@ export default async function TypingPage() {
       .eq("user_id", userId)
       .eq("card_type", "word")
       .neq("status", "suspended")
-      .gte("interval_days", WORD_MIN_INTERVAL)
+      .lte("next_review_at", now)
       .limit(200)
       .returns<Card[]>(),
     supabase
@@ -42,19 +42,21 @@ export default async function TypingPage() {
       .eq("card_type", "expression")
       .eq("curriculum_source", "chat-organic")
       .neq("status", "suspended")
+      .lte("next_review_at", now)
       .limit(200)
       .returns<Card[]>(),
   ]);
 
   const pool = [...(wordRes.data ?? []), ...(phraseRes.data ?? [])];
-  if (pool.length < 5) {
+  if (pool.length === 0) {
     return (
       <main className="flex flex-1 min-h-svh flex-col items-center justify-center gap-6 p-8 pb-24">
-        <div className="text-6xl">🌱</div>
-        <p className="text-xl">まだ英訳ドリルの対象がありません</p>
+        <div className="text-6xl">🎉</div>
+        <p className="text-xl">今日のドリル完了</p>
         <p className="text-xs text-muted text-center">
-          単語はインターバル {WORD_MIN_INTERVAL}日以上、フレーズは通常の
-          復習を一度通したものから挑戦できます。
+          今すぐ復習が必要なカードはありません。
+          <br />
+          ホームの「今日のノルマ」から新規導入もできます。
         </p>
         <Link
           href="/"

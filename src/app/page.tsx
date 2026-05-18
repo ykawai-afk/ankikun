@@ -26,8 +26,10 @@ import { loadUserStateWithRefill, loadFrozenDays } from "@/lib/streak-freeze";
 import { FreezeStreakButton } from "@/components/freeze-streak-button";
 
 export const dynamic = "force-dynamic";
-const TYPING_MIN_INTERVAL = 14;
-const TYPING_MIN_COUNT = 5;
+// Typing drill (production) used to gate words behind a 14-day passive
+// interval, but with the 2026-05-18 curriculum reset we want production
+// access from day 1 — SRS still throttles via next_review_at.
+const TYPING_MIN_COUNT = 1;
 // Context review surfaces when there are enough consolidation-phase cards
 // (interval 2-20d) — matches the fetch range in /review/context.
 const CONTEXT_MIN_INTERVAL = 2;
@@ -119,22 +121,24 @@ export default async function Home() {
     ),
     countNewIntrosSince(userId),
     getLeechCount(userId),
+    // Typing-drill pool counts must match /review/typing/page.tsx:
+    // non-suspended, due (next_review_at <= now), no interval gate for
+    // words; expressions stay chat-organic only.
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
       .eq("card_type", "word")
       .neq("status", "suspended")
-      .gte("interval_days", TYPING_MIN_INTERVAL),
-    // Phrases skip the 14-day gate — production-first by design. Match
-    // /review/typing/page.tsx exactly: chat-organic only.
+      .lte("next_review_at", now),
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
       .eq("card_type", "expression")
       .eq("curriculum_source", "chat-organic")
-      .neq("status", "suspended"),
+      .neq("status", "suspended")
+      .lte("next_review_at", now),
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
