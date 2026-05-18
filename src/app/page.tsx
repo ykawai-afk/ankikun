@@ -58,7 +58,6 @@ export default async function Home() {
     logsRes,
     newIntrosToday,
     leechCount,
-    typingPoolRes,
     phraseTypingPoolRes,
     contextPoolRes,
     rootPoolRes,
@@ -66,25 +65,20 @@ export default async function Home() {
     userState,
     frozenDays,
   ] = await Promise.all([
-    // Cards that have been touched at least once AND are due
+    // /review is words-only. Phrases get their own lane via
+    // /review/typing — phraseTypingPool below counts them.
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .or(
-        "card_type.eq.word,and(card_type.eq.expression,curriculum_source.eq.chat-organic)"
-      )
+      .eq("card_type", "word")
       .in("status", ["learning", "review"])
       .lte("next_review_at", now),
-    // New cards not yet introduced (daily queue = words + chat-organic
-    // phrases; curriculum phrases live in /review/typing only).
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .or(
-        "card_type.eq.word,and(card_type.eq.expression,curriculum_source.eq.chat-organic)"
-      )
+      .eq("card_type", "word")
       .eq("status", "new")
       .lte("next_review_at", now),
     supabase
@@ -121,16 +115,7 @@ export default async function Home() {
     ),
     countNewIntrosSince(userId),
     getLeechCount(userId),
-    // Typing-drill pool counts must match /review/typing/page.tsx:
-    // non-suspended, due (next_review_at <= now), no interval gate for
-    // words; expressions stay chat-organic only.
-    supabase
-      .from("cards")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("card_type", "word")
-      .neq("status", "suspended")
-      .lte("next_review_at", now),
+    // /review/typing is the phrase-only English cloze lane.
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
@@ -162,9 +147,7 @@ export default async function Home() {
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .or(
-        "card_type.eq.word,and(card_type.eq.expression,curriculum_source.eq.chat-organic)"
-      )
+      .eq("card_type", "word")
       .in("status", ["learning", "review"])
       .gt("next_review_at", now)
       .lte("next_review_at", next24hIso),
@@ -174,9 +157,7 @@ export default async function Home() {
 
   const reviewDue = reviewDueRes.count ?? 0;
   const newAvailable = newAvailRes.count ?? 0;
-  const wordTypingPool = typingPoolRes.count ?? 0;
   const phraseTypingPool = phraseTypingPoolRes.count ?? 0;
-  const typingPool = wordTypingPool + phraseTypingPool;
   const contextPool = contextPoolRes.count ?? 0;
   const rootPool = rootPoolRes.count ?? 0;
   const total = totalRes.count ?? 0;
@@ -373,7 +354,7 @@ export default async function Home() {
           </Link>
         )}
 
-        {typingPool >= TYPING_MIN_COUNT && (
+        {phraseTypingPool >= TYPING_MIN_COUNT && (
           <Link
             href="/review/typing"
             className="group rounded-xl bg-accent-soft border border-accent/20 px-3.5 py-2.5 flex items-center gap-2 active:scale-[0.99] transition"
@@ -381,14 +362,11 @@ export default async function Home() {
             <Keyboard size={14} className="text-accent shrink-0" />
             <div className="flex flex-col min-w-0 flex-1">
               <span className="text-[9px] uppercase tracking-widest text-accent font-semibold">
-                英訳ドリル · 日 → 英
+                💬 フレーズ穴埋め · Claude Code
               </span>
               <span className="text-[12px]">
-                <span className="text-muted">単語 </span>
-                <span className="font-semibold tabular-nums">{wordTypingPool}</span>
-                <span className="text-muted"> / フレーズ </span>
                 <span className="font-semibold tabular-nums">{phraseTypingPool}</span>
-                <span className="text-muted"> 枚</span>
+                <span className="text-muted"> 枚 · 英文の空欄を埋める</span>
               </span>
             </div>
             <ArrowRight

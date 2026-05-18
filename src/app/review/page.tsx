@@ -40,21 +40,16 @@ export default async function ReviewPage() {
   );
   const newSlotsLeft = Math.max(0, DAILY_NEW_TARGET - newIntrosToday);
 
-  // Daily /review surfaces words + chat-derived phrases only. The bulk
-  // curriculum phrases (curriculum_source = "c1-curriculum-2026") sit out
-  // of the recognition queue and live in /review/typing for production
-  // drill. The premise is that any phrase worth surfacing for daily
-  // recognition has already passed through a Claude Code chat — chat-
-  // organic alone provides more than enough volume.
+  // /review is the word lane only: front/back recognition. Phrases live
+  // in /review/typing as English cloze production drill — separating
+  // the routes keeps the user's mental model clean.
   const [reviewRes, newRes] = await Promise.all([
     slotsLeftToday > 0
       ? supabase
           .from("cards")
           .select(CARD_COLUMNS)
           .eq("user_id", userId)
-          .or(
-            "card_type.eq.word,and(card_type.eq.expression,curriculum_source.eq.chat-organic)"
-          )
+          .eq("card_type", "word")
           .in("status", ["learning", "review"])
           .lte("next_review_at", now)
           .order("next_review_at", { ascending: true })
@@ -66,9 +61,7 @@ export default async function ReviewPage() {
           .from("cards")
           .select(CARD_COLUMNS)
           .eq("user_id", userId)
-          .or(
-            "card_type.eq.word,and(card_type.eq.expression,curriculum_source.eq.chat-organic)"
-          )
+          .eq("card_type", "word")
           .eq("status", "new")
           .lte("next_review_at", now)
           .order("next_review_at", { ascending: true })

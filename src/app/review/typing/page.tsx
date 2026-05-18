@@ -15,48 +15,30 @@ export default async function TypingPage() {
   const userId = getUserId();
   const now = new Date().toISOString();
 
-  // Typing drill semantics (post-2026-05-18 reset):
-  // - Honour SRS `next_review_at`: never re-surface a card the user
-  //   already cleared today. Without this filter the same word showed
-  //   up multiple times per session.
-  // - No interval gate for words. The previous 14-day passive-first
-  //   rule was throttling production access on a 4k-card year-end push.
-  //   New / learning / review status all flow through; SRS still
-  //   schedules the cadence.
-  // - Expressions stay chat-organic only — bulk curriculum phrases live
-  //   outside the daily drill.
-  const [wordRes, phraseRes] = await Promise.all([
-    supabase
-      .from("cards")
-      .select(CARD_COLUMNS)
-      .eq("user_id", userId)
-      .eq("card_type", "word")
-      .neq("status", "suspended")
-      .lte("next_review_at", now)
-      .limit(200)
-      .returns<Card[]>(),
-    supabase
-      .from("cards")
-      .select(CARD_COLUMNS)
-      .eq("user_id", userId)
-      .eq("card_type", "expression")
-      .eq("curriculum_source", "chat-organic")
-      .neq("status", "suspended")
-      .lte("next_review_at", now)
-      .limit(200)
-      .returns<Card[]>(),
-  ]);
+  // /review/typing is the **phrase-only** English cloze drill. Words
+  // live in /review (front/back recognition). Restrict to chat-organic
+  // expressions — bulk curriculum phrases sit outside the daily flow.
+  const { data: phraseCards } = await supabase
+    .from("cards")
+    .select(CARD_COLUMNS)
+    .eq("user_id", userId)
+    .eq("card_type", "expression")
+    .eq("curriculum_source", "chat-organic")
+    .neq("status", "suspended")
+    .lte("next_review_at", now)
+    .limit(200)
+    .returns<Card[]>();
 
-  const pool = [...(wordRes.data ?? []), ...(phraseRes.data ?? [])];
+  const pool = phraseCards ?? [];
   if (pool.length === 0) {
     return (
       <main className="flex flex-1 min-h-svh flex-col items-center justify-center gap-6 p-8 pb-24">
         <div className="text-6xl">🎉</div>
-        <p className="text-xl">今日のドリル完了</p>
+        <p className="text-xl">フレーズ穴埋め完了</p>
         <p className="text-xs text-muted text-center">
-          今すぐ復習が必要なカードはありません。
+          今すぐ復習が必要な Claude Code フレーズはありません。
           <br />
-          ホームの「今日のノルマ」から新規導入もできます。
+          チャットで新しいフレーズが採用されると次回ここに並びます。
         </p>
         <Link
           href="/"
