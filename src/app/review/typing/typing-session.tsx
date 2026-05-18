@@ -28,19 +28,58 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+const PLACEHOLDER_RE =
+  /^(x|y|z|one's|someone's|somebody's|someone|somebody|something|one|sb|sth)$/i;
+
 /**
- * Render the phrase blanked out in its example sentence. Pattern-style
- * phrases (e.g. "apply X to Y") whose literal form doesn't appear in the
- * example fall back to `null` so callers can pick a different prompt mode.
+ * Render the phrase blanked out in its example sentence.
+ *
+ * Two-stage match so pattern phrases like "apply X to Y" still blank
+ * cleanly when the example fills the placeholders with real words:
+ *
+ *  1. Try a literal case-insensitive match — covers "open a PR" /
+ *     "ditto" / "Got it." style entries.
+ *  2. Otherwise, replace placeholder tokens (X, Y, one's, someone,
+ *     something) with `.+?` and try a regex match — handles "apply X
+ *     to Y" → "Apply these comments to the docs."
+ *
+ * Returns `null` when neither shape matches (the caller falls back to
+ * a different prompt mode).
  */
 function clozeExample(example: string, phrase: string): string | null {
-  // Strip trailing punctuation/whitespace from the phrase so "Got it." still
-  // blanks correctly when the example reads "Got it. I'll handle that next."
   const stripped = phrase.replace(/[.,!?;:'"]+$/, "").trim();
   if (!stripped) return null;
-  const re = new RegExp(escapeRegExp(stripped), "i");
-  if (!re.test(example)) return null;
-  return example.replace(re, "_______");
+
+  // 1. Literal match.
+  const literalRe = new RegExp(escapeRegExp(stripped), "i");
+  if (literalRe.test(example)) return example.replace(literalRe, "_______");
+
+  // 2. Placeholder-aware match. Tokens like X/Y/one's become `.+?` so
+  // "Apply <X> to <Y>." catches "Apply these comments to the docs".
+  //
+  // The trailing anchor is mode-dependent:
+  // - last token is a placeholder → cap at the next punctuation / end
+  //   of string so the greedy tail picks up multi-word fills like
+  //   "the docs".
+  // - last token is literal → just require a word boundary, otherwise
+  //   we never match phrases that end mid-sentence (e.g. "factor X in"
+  //   inside "Factor that risk in when estimating.").
+  const tokens = stripped.split(/\s+/);
+  if (tokens.some((t) => PLACEHOLDER_RE.test(t))) {
+    const body = tokens
+      .map((t) => (PLACEHOLDER_RE.test(t) ? ".+?" : escapeRegExp(t)))
+      .join("\\s+");
+    const lastIsPlaceholder = PLACEHOLDER_RE.test(tokens[tokens.length - 1]);
+    const tail = lastIsPlaceholder ? "(?=[.,;:!?]|$)" : "\\b";
+    try {
+      const patternRe = new RegExp(`\\b${body}${tail}`, "i");
+      const m = example.match(patternRe);
+      if (m) return example.replace(m[0], "_______");
+    } catch {
+      /* malformed regex — fall through */
+    }
+  }
+  return null;
 }
 
 function buildPrompt(card: Card): Prompt {
