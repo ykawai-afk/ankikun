@@ -73,7 +73,7 @@ export default async function Home() {
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .eq("card_type", "word")
+      .in("card_type", ["word", "expression"])
       .in("status", ["learning", "review"])
       .lte("next_review_at", now),
     // New cards not yet introduced
@@ -81,21 +81,21 @@ export default async function Home() {
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .eq("card_type", "word")
+      .in("card_type", ["word", "expression"])
       .eq("status", "new")
       .lte("next_review_at", now),
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .eq("card_type", "word"),
+      .in("card_type", ["word", "expression"]),
     // Active denominator (non-suspended). Mastered % compares mastered against
     // what the user is actually still studying, not against lifetime cards.
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .eq("card_type", "word")
+      .in("card_type", ["word", "expression"])
       .neq("status", "suspended"),
     // Mastered = interval ≥ 21d OR was_intro_easy. Matches isMastered()
     // in src/lib/mastery.ts so the count here aligns with stats.
@@ -103,7 +103,7 @@ export default async function Home() {
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .eq("card_type", "word")
+      .in("card_type", ["word", "expression"])
       .neq("status", "suspended")
       .or(`interval_days.gte.${MASTERED_THRESHOLD_DAYS},was_intro_easy.eq.true`),
     // 100-day window; paginated so a power week with >1000 reviews
@@ -122,7 +122,7 @@ export default async function Home() {
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .eq("card_type", "word")
+      .in("card_type", ["word", "expression"])
       .neq("status", "suspended")
       .gte("interval_days", TYPING_MIN_INTERVAL),
     supabase
@@ -148,7 +148,7 @@ export default async function Home() {
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .eq("card_type", "word")
+      .in("card_type", ["word", "expression"])
       .in("status", ["learning", "review"])
       .gt("next_review_at", now)
       .lte("next_review_at", next24hIso),

@@ -1,18 +1,19 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isIntroLog } from "@/lib/mastery";
 
-// Single source of truth for new-card intake goals. Hardcoded now; can grow
-// into a settings table later once the numbers feel right.
-export const DAILY_NEW_TARGET = 25;
-export const WEEKLY_NEW_TARGET = 150;
-export const QUARTERLY_NEW_TARGET = 1500;
-export const YEARLY_NEW_TARGET = 6000;
+// Single source of truth for new-card intake goals. Sized so the
+// 2026-05-18 seed (~4.4k cards across words + phrases) fully introduces
+// itself by year-end at 20/day × ~227 days.
+export const DAILY_NEW_TARGET = 20;
+export const WEEKLY_NEW_TARGET = 120;
+export const QUARTERLY_NEW_TARGET = 1200;
+export const YEARLY_NEW_TARGET = 4800;
 
 // Soft ceiling on a single day's review session (new + due review combined).
 // Once this many cards have been graded today, the session is "done" — any
-// remaining due reviews quietly roll into tomorrow's queue. Picked so a full
-// session lands around 15-20 minutes; continuity beats throughput.
-export const DAILY_SESSION_TARGET = 50;
+// remaining due reviews quietly roll into tomorrow's queue. 60 = 20 new + ~40
+// reviews ≈ 20 minutes; continuity beats throughput.
+export const DAILY_SESSION_TARGET = 60;
 
 // Per-day cap on expression-card reviews. Each one becomes a 1-2min ChatGPT
 // voice roleplay session, so the lane is throughput-bound, not appetite-
@@ -20,11 +21,13 @@ export const DAILY_SESSION_TARGET = 50;
 // switch fatigues, smaller and the corpus doesn't compound.
 export const DAILY_EXPRESSION_TARGET = 8;
 
-// Vocabulary size estimation. Baseline is the pre-Ankikun floor (鉄壁完遂
-// @ 一橋 → 減衰後). Card weights only count words the user likely didn't
-// already have — so the cheaper CEFR levels contribute nothing (rehearsal
-// rather than expansion) and only the upper bands add to the tally.
-export const VOCAB_BASELINE = 8000;
+// Vocabulary size estimation. Baseline is the pre-Ankikun floor — re-set
+// 2026-05-18 to 5,500 to reflect the May-18 triage test (B2 mid, ~20%
+// cognate-trap false confidence; previous 8,000 over-stated 鉄壁 decay).
+// Card weights only count words the user likely didn't already have — so
+// the cheaper CEFR levels contribute nothing (rehearsal rather than
+// expansion) and only the upper bands add to the tally.
+export const VOCAB_BASELINE = 5500;
 export const VOCAB_CARD_WEIGHT: Record<string, number> = {
   A1: 0,
   A2: 0,
