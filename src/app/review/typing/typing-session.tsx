@@ -45,6 +45,7 @@ function clozeExample(example: string, phrase: string): string | null {
 
 function buildPrompt(card: Card): Prompt {
   if (card.card_type === "expression") {
+    // Best case: example_en literally contains the phrase → cloze it out.
     const clozed =
       card.example_en && clozeExample(card.example_en, card.word);
     if (clozed) {
@@ -61,27 +62,73 @@ function buildPrompt(card: Card): Prompt {
         placeholder: "type the phrase…",
       };
     }
+    // Pattern phrase (e.g. "apply X to Y") — the example exists but
+    // doesn't contain the surface form. Surface the example sentence
+    // verbatim so the user reads English context, and use the English
+    // definition as the hint instead of switching to Japanese.
+    if (card.example_en) {
+      return {
+        label: "パターンを当てる",
+        main: (
+          <p className="text-lg sm:text-xl font-semibold leading-snug tracking-tight">
+            {card.example_en}
+          </p>
+        ),
+        hint: (
+          <p className="text-xs text-muted leading-snug">
+            {card.definition_en ?? card.example_ja ?? card.definition_ja}
+          </p>
+        ),
+        placeholder: "type the phrase pattern…",
+      };
+    }
+    // Nothing usable in English → last resort: English definition first,
+    // Japanese only as fallback.
     return {
       label: "フレーズを入力",
       main: (
         <p className="text-lg sm:text-xl font-semibold leading-snug tracking-tight">
-          {card.definition_ja}
+          {card.definition_en ?? card.definition_ja}
         </p>
       ),
-      hint: card.example_ja ? (
-        <p className="text-xs text-muted leading-snug">{card.example_ja}</p>
+      hint: card.definition_en ? (
+        <p className="text-xs text-muted leading-snug">{card.definition_ja}</p>
       ) : null,
       placeholder: "type the phrase…",
     };
+  }
+  // Words: prefer cloze when example has the word, else English definition.
+  if (card.example_en) {
+    const clozed = clozeExample(card.example_en, card.word);
+    if (clozed) {
+      return {
+        label: "空欄を埋める",
+        main: (
+          <p className="text-lg sm:text-xl font-semibold leading-snug tracking-tight">
+            {clozed}
+          </p>
+        ),
+        hint: card.example_ja ? (
+          <p className="text-xs text-muted leading-snug">{card.example_ja}</p>
+        ) : card.part_of_speech ? (
+          <span className="text-[10px] uppercase tracking-widest text-muted">
+            {card.part_of_speech}
+          </span>
+        ) : null,
+        placeholder: "type the word…",
+      };
+    }
   }
   return {
     label: "英訳を入力",
     main: (
       <p className="text-xl sm:text-2xl font-semibold leading-snug tracking-tight">
-        {card.definition_ja}
+        {card.definition_en ?? card.definition_ja}
       </p>
     ),
-    hint: card.part_of_speech ? (
+    hint: card.definition_en ? (
+      <p className="text-xs text-muted leading-snug">{card.definition_ja}</p>
+    ) : card.part_of_speech ? (
       <span className="text-[10px] uppercase tracking-widest text-muted">
         {card.part_of_speech}
       </span>
