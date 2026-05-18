@@ -12,6 +12,83 @@ import { grade } from "../actions";
 
 type Phase = "input" | "correct" | "wrong";
 
+type Prompt = {
+  /** Tag rendered above the prompt block. */
+  label: string;
+  /** Card type-specific main prompt content. */
+  main: React.ReactNode;
+  /** Optional secondary hint shown under the main prompt. */
+  hint?: React.ReactNode;
+  /** Input placeholder. */
+  placeholder: string;
+};
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Render the phrase blanked out in its example sentence. Pattern-style
+ * phrases (e.g. "apply X to Y") whose literal form doesn't appear in the
+ * example fall back to `null` so callers can pick a different prompt mode.
+ */
+function clozeExample(example: string, phrase: string): string | null {
+  // Strip trailing punctuation/whitespace from the phrase so "Got it." still
+  // blanks correctly when the example reads "Got it. I'll handle that next."
+  const stripped = phrase.replace(/[.,!?;:'"]+$/, "").trim();
+  if (!stripped) return null;
+  const re = new RegExp(escapeRegExp(stripped), "i");
+  if (!re.test(example)) return null;
+  return example.replace(re, "_______");
+}
+
+function buildPrompt(card: Card): Prompt {
+  if (card.card_type === "expression") {
+    const clozed =
+      card.example_en && clozeExample(card.example_en, card.word);
+    if (clozed) {
+      return {
+        label: "空欄を埋める",
+        main: (
+          <p className="text-lg sm:text-xl font-semibold leading-snug tracking-tight">
+            {clozed}
+          </p>
+        ),
+        hint: card.example_ja ? (
+          <p className="text-xs text-muted leading-snug">{card.example_ja}</p>
+        ) : null,
+        placeholder: "type the phrase…",
+      };
+    }
+    return {
+      label: "フレーズを入力",
+      main: (
+        <p className="text-lg sm:text-xl font-semibold leading-snug tracking-tight">
+          {card.definition_ja}
+        </p>
+      ),
+      hint: card.example_ja ? (
+        <p className="text-xs text-muted leading-snug">{card.example_ja}</p>
+      ) : null,
+      placeholder: "type the phrase…",
+    };
+  }
+  return {
+    label: "英訳を入力",
+    main: (
+      <p className="text-xl sm:text-2xl font-semibold leading-snug tracking-tight">
+        {card.definition_ja}
+      </p>
+    ),
+    hint: card.part_of_speech ? (
+      <span className="text-[10px] uppercase tracking-widest text-muted">
+        {card.part_of_speech}
+      </span>
+    ) : null,
+    placeholder: "type the word…",
+  };
+}
+
 export function TypingSession({ initialQueue }: { initialQueue: Card[] }) {
   const router = useRouter();
   const [queue] = useState<Card[]>(initialQueue);
@@ -73,15 +150,20 @@ export function TypingSession({ initialQueue }: { initialQueue: Card[] }) {
 
   const progress = total > 0 ? Math.min(100, (idx / total) * 100) : 0;
 
-  if (!card) {
-    return <TypingSummary counts={counts} total={total} />;
-  }
-
   const flashColor = useMemo(() => {
     if (phase === "correct") return "rgba(16,185,129,0.14)";
     if (phase === "wrong") return "rgba(239,68,68,0.14)";
     return "transparent";
   }, [phase]);
+
+  const prompt = useMemo(
+    () => (card ? buildPrompt(card) : null),
+    [card]
+  );
+
+  if (!card || !prompt) {
+    return <TypingSummary counts={counts} total={total} />;
+  }
 
   return (
     <div className="flex flex-col flex-1 min-h-svh relative">
@@ -121,18 +203,12 @@ export function TypingSession({ initialQueue }: { initialQueue: Card[] }) {
           className="flex-1 flex flex-col items-center justify-center gap-4 py-5"
         >
           <span className="text-[9px] uppercase tracking-widest text-accent font-semibold">
-            英訳を入力
+            {prompt.label}
           </span>
 
           <div className="rounded-2xl bg-surface-2 px-4 py-4 border-l-2 border-accent w-full max-w-md flex flex-col gap-1.5">
-            <p className="text-xl sm:text-2xl font-semibold leading-snug tracking-tight">
-              {card.definition_ja}
-            </p>
-            {card.part_of_speech && (
-              <span className="text-[10px] uppercase tracking-widest text-muted">
-                {card.part_of_speech}
-              </span>
-            )}
+            {prompt.main}
+            {prompt.hint}
           </div>
 
           <AnimatePresence mode="wait">
@@ -154,7 +230,7 @@ export function TypingSession({ initialQueue }: { initialQueue: Card[] }) {
                       check();
                     }
                   }}
-                  placeholder="type the word…"
+                  placeholder={prompt.placeholder}
                   autoCapitalize="none"
                   autoCorrect="off"
                   autoComplete="off"

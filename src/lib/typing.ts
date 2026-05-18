@@ -29,6 +29,10 @@ export function isTypingMatch(input: string, target: string): boolean {
   const want = normalize(target);
   if (!got || !want) return false;
   const dist = leven(got, want);
-  const allow = want.length <= 5 ? 0 : 1;
+  // Length-graded typo tolerance: single short word stays strict, longer
+  // phrases get more slack because each extra word adds independent typo
+  // opportunities even when the learner clearly knows the phrase.
+  const allow =
+    want.length <= 5 ? 0 : want.length <= 15 ? 1 : want.length <= 25 ? 2 : 3;
   return dist <= allow;
 }
