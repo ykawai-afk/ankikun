@@ -5,7 +5,6 @@ import {
   BookOpen,
   Flame,
   Keyboard,
-  Mic,
   Snowflake,
   Sparkles,
   Sprout,
@@ -17,7 +16,6 @@ import { Heatmap } from "@/components/heatmap";
 import { computeStreak, reviewedTodayCount, countsByDay } from "@/lib/streak";
 import { getLeechCount } from "@/lib/leech";
 import {
-  DAILY_EXPRESSION_TARGET,
   DAILY_NEW_TARGET,
   DAILY_SESSION_TARGET,
   countNewIntrosSince,
@@ -65,24 +63,26 @@ export default async function Home() {
     tomorrowAddsRes,
     userState,
     frozenDays,
-    expressionIdsRes,
-    expressionDueRes,
-    expressionTotalRes,
   ] = await Promise.all([
     // Cards that have been touched at least once AND are due
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .in("card_type", ["word", "expression"])
+      .or(
+        "card_type.eq.word,and(card_type.eq.expression,curriculum_source.eq.chat-organic)"
+      )
       .in("status", ["learning", "review"])
       .lte("next_review_at", now),
-    // New cards not yet introduced
+    // New cards not yet introduced (daily queue = words + chat-organic
+    // phrases; curriculum phrases live in /review/typing only).
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .in("card_type", ["word", "expression"])
+      .or(
+        "card_type.eq.word,and(card_type.eq.expression,curriculum_source.eq.chat-organic)"
+      )
       .eq("status", "new")
       .lte("next_review_at", now),
     supabase
@@ -157,58 +157,15 @@ export default async function Home() {
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .in("card_type", ["word", "expression"])
+      .or(
+        "card_type.eq.word,and(card_type.eq.expression,curriculum_source.eq.chat-organic)"
+      )
       .in("status", ["learning", "review"])
       .gt("next_review_at", now)
       .lte("next_review_at", next24hIso),
     loadUserStateWithRefill(userId),
     loadFrozenDays(userId),
-    // Expression-lane membership: IDs feed the today-graded count below.
-    // Empty list means the lane is unused, in which case the panel hides.
-    supabase
-      .from("cards")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("card_type", "expression"),
-    // Due expression cards (overdue learning/review or new). Drives the
-    // panel's "残り N枚" indicator.
-    supabase
-      .from("cards")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("card_type", "expression")
-      .neq("status", "suspended")
-      .lte("next_review_at", now),
-    // Lifetime total expression cards — used to surface the panel even when
-    // nothing is currently due (so the user can see the lane exists).
-    supabase
-      .from("cards")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("card_type", "expression"),
   ]);
-
-  const expressionIds = (expressionIdsRes.data ?? []).map((r) => r.id);
-  let expressionGradedToday = 0;
-  if (expressionIds.length > 0) {
-    const { count } = await supabase
-      .from("review_logs")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .gte("reviewed_at", dayStartIso)
-      .in("card_id", expressionIds);
-    expressionGradedToday = count ?? 0;
-  }
-  const expressionDue = expressionDueRes.count ?? 0;
-  const expressionTotal = expressionTotalRes.count ?? 0;
-  const expressionSlotsLeft = Math.max(
-    0,
-    DAILY_EXPRESSION_TARGET - expressionGradedToday
-  );
-  const expressionShouldShow =
-    expressionTotal > 0 || expressionGradedToday > 0;
-  const expressionActionable =
-    expressionDue > 0 && expressionSlotsLeft > 0;
 
   const reviewDue = reviewDueRes.count ?? 0;
   const newAvailable = newAvailRes.count ?? 0;
@@ -384,50 +341,6 @@ export default async function Home() {
           <div className="h-10 rounded-xl bg-success-soft border border-success/20 flex items-center justify-center text-success text-xs font-medium">
             🎉 今日のノルマ完了 — また明日
           </div>
-        )}
-
-        {expressionShouldShow && (
-          <Link
-            href="/review/expression"
-            className="group rounded-xl bg-violet-500/5 border border-violet-500/25 px-3.5 py-2.5 flex items-center gap-2 active:scale-[0.99] transition"
-          >
-            <Mic
-              size={14}
-              className="text-violet-600 dark:text-violet-400 shrink-0"
-            />
-            <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-[9px] uppercase tracking-widest text-violet-700 dark:text-violet-400 font-semibold">
-                夜の練習 · ChatGPT音声ロールプレイ
-              </span>
-              <span className="text-[12px]">
-                {expressionActionable ? (
-                  <>
-                    <span className="font-semibold tabular-nums">
-                      {Math.min(expressionDue, expressionSlotsLeft)}
-                    </span>
-                    <span className="text-muted">
-                      {" "}
-                      枚 · 今日 {expressionGradedToday}/
-                      {DAILY_EXPRESSION_TARGET}
-                    </span>
-                  </>
-                ) : expressionSlotsLeft === 0 && expressionGradedToday > 0 ? (
-                  <span className="text-muted">
-                    今夜の練習は完了 ({expressionGradedToday}/
-                    {DAILY_EXPRESSION_TARGET})
-                  </span>
-                ) : (
-                  <span className="text-muted">
-                    期限切れなし · {expressionTotal}枚 蓄積
-                  </span>
-                )}
-              </span>
-            </div>
-            <ArrowRight
-              size={13}
-              className="text-violet-600/70 dark:text-violet-400/70 group-hover:translate-x-0.5 transition"
-            />
-          </Link>
         )}
 
         {leechCount > 0 && (
