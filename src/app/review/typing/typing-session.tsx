@@ -203,16 +203,9 @@ export function TypingSession({ initialQueue }: { initialQueue: Card[] }) {
           transition={{ duration: 0.15 }}
           className="flex-1 flex flex-col items-center justify-center gap-4 py-5"
         >
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] uppercase tracking-widest text-accent font-semibold">
-              {prompt.label}
-            </span>
-            <SourceBadge
-              curriculumSource={card.curriculum_source}
-              derivationType={card.derivation_type}
-              size="xs"
-            />
-          </div>
+          <span className="text-[9px] uppercase tracking-widest text-accent font-semibold">
+            {prompt.label}
+          </span>
 
           <div className="rounded-2xl bg-surface-2 px-4 py-4 border-l-2 border-accent w-full max-w-md flex flex-col gap-1.5">
             {prompt.main}
@@ -226,8 +219,14 @@ export function TypingSession({ initialQueue }: { initialQueue: Card[] }) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="w-full max-w-md"
+                className="w-full max-w-md flex flex-col gap-2"
               >
+                <div className="flex items-center justify-center">
+                  <SourceBadge
+                    curriculumSource={card.curriculum_source}
+                    derivationType={card.derivation_type}
+                  />
+                </div>
                 <input
                   ref={inputRef}
                   value={value}
