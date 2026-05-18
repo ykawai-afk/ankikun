@@ -37,6 +37,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# enrichment script runtime artifacts (progress + log files)
+scripts/*.progress
+scripts/*.log
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

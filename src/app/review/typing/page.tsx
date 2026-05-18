@@ -19,7 +19,7 @@ export default async function TypingPage() {
       "id, user_id, word, reading, part_of_speech, definition_ja, definition_en, example_en, example_ja, source_image_path, source_context, etymology, user_note, audio_url, difficulty, image_url, related_words, extra_examples, deep_dive, tags, ease_factor, interval_days, repetitions, next_review_at, last_reviewed_at, status, created_at, updated_at"
     )
     .eq("user_id", userId)
-    .eq("card_type", "word")
+    .in("card_type", ["word", "expression"])
     .neq("status", "suspended")
     .gte("interval_days", MIN_INTERVAL)
     .limit(200)

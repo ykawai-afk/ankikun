@@ -1,0 +1,1199 @@
+# C1 curriculum phrase list for Ankikun expression enrichment.
+# Used with enrich-cards.mjs --card-type expression.
+# Lines starting with `#` are skipped. Blank lines skipped.
+
+# ===== P2: Phrasal verbs (high-frequency Top 300) =====
+
+# take
+take up
+take on
+take off
+take over
+take down
+take in
+take out
+take after
+take back
+take apart
+take to
+take aside
+take into account
+take part in
+take advantage of
+take care of
+take charge of
+take hold of
+
+# look
+look up
+look up to
+look down on
+look into
+look after
+look for
+look out
+look out for
+look forward to
+look over
+look through
+look at
+look back on
+look around
+
+# put
+put up
+put down
+put off
+put on
+put together
+put up with
+put forward
+put through
+put aside
+put away
+put back
+put out
+put across
+put in
+
+# get
+get up
+get on
+get on with
+get over
+get along
+get away
+get away with
+get back
+get back at
+get rid of
+get through
+get into
+get out of
+get ahead
+get by
+get across
+get down to
+get round to
+
+# come
+come up
+come up with
+come up against
+come across
+come along
+come around
+come back
+come down
+come down to
+come in
+come off
+come out
+come over
+come through
+come to
+come under
+
+# go
+go on
+go off
+go through
+go through with
+go ahead
+go back
+go back on
+go without
+go down
+go down with
+go for
+go in for
+go off
+go out
+go over
+go round
+go up
+go under
+
+# set
+set up
+set off
+set out
+set aside
+set back
+set down
+set in
+set on
+set to
+set forth
+
+# bring
+bring up
+bring about
+bring back
+bring out
+bring in
+bring along
+bring down
+bring forward
+bring off
+bring on
+bring round
+bring together
+
+# pick
+pick up
+pick out
+pick on
+pick over
+pick at
+pick apart
+
+# carry
+carry out
+carry on
+carry off
+carry over
+carry through
+
+# run
+run into
+run out of
+run over
+run through
+run away
+run after
+run down
+run for
+run up
+
+# turn
+turn on
+turn off
+turn out
+turn up
+turn down
+turn into
+turn over
+turn around
+turn against
+turn away
+turn back
+
+# give
+give up
+give in
+give out
+give back
+give away
+give off
+give onto
+
+# make
+make up
+make out
+make up for
+make of
+make off with
+make do
+make for
+make over
+
+# break
+break down
+break up
+break out
+break in
+break through
+break off
+break away
+break into
+break with
+
+# hold
+hold on
+hold up
+hold back
+hold out
+hold over
+hold to
+hold against
+hold down
+hold off
+
+# fall
+fall down
+fall back
+fall apart
+fall behind
+fall for
+fall in
+fall off
+fall out
+fall over
+fall through
+
+# catch
+catch up
+catch on
+catch out
+catch up with
+
+# pass
+pass out
+pass up
+pass away
+pass down
+pass off
+pass over
+
+# show
+show up
+show off
+show around
+
+# back
+back up
+back down
+back off
+back out
+
+# check
+check in
+check out
+check up on
+check off
+
+# cut
+cut down
+cut off
+cut out
+cut back
+cut in
+cut through
+
+# end
+end up
+end in
+
+# figure
+figure out
+
+# hang
+hang on
+hang out
+hang up
+hang in
+hang back
+hang over
+
+# keep
+keep up
+keep on
+keep up with
+keep at
+keep away
+keep back
+keep down
+keep in
+keep off
+keep out
+keep to
+keep together
+
+# knock
+knock down
+knock off
+knock out
+knock over
+
+# let
+let down
+let in
+let on
+let out
+let off
+let through
+let up
+
+# pay
+pay back
+pay off
+pay up
+pay out
+pay for
+
+# rule
+rule out
+
+# save
+save up
+
+# speak
+speak up
+speak out
+speak for
+speak to
+
+# stand
+stand by
+stand for
+stand up
+stand up for
+stand up to
+stand out
+stand down
+
+# stick
+stick around
+stick out
+stick to
+stick by
+stick up for
+stick with
+
+# sum
+sum up
+
+# tear
+tear up
+tear down
+tear apart
+
+# think
+think over
+think up
+think through
+think ahead
+think back
+
+# try
+try on
+try out
+try for
+
+# wear
+wear out
+wear off
+wear down
+
+# wipe
+wipe out
+
+# work
+work out
+work on
+work up
+work through
+
+# write
+write down
+write off
+write up
+write out
+
+# Misc high-frequency
+add up
+back up
+bear out
+blow over
+blow up
+boil down to
+chip in
+close down
+clear up
+crop up
+draw on
+dwell on
+embark on
+flesh out
+follow through
+follow up
+gear up
+hand in
+hand out
+hash out
+iron out
+key in
+kick in
+kick off
+lay off
+lay out
+let alone
+live up to
+live with
+lock in
+log in
+log out
+mess up
+mix up
+move on
+opt out
+opt in
+phase in
+phase out
+pin down
+plug in
+point out
+print out
+pull off
+pull through
+push back
+push for
+push through
+rack up
+rope in
+rope into
+roll out
+round up
+sail through
+shake off
+sign up
+sign in
+sign off
+slow down
+slow up
+sort out
+spell out
+stem from
+step back
+step in
+step up
+stir up
+straighten out
+sweep aside
+swing by
+tag along
+talk down
+talk over
+tap into
+team up
+tide over
+tie up
+top up
+touch on
+trick into
+tune in
+tune out
+walk through
+ward off
+weed out
+weigh in
+weigh up
+win over
+zero in on
+zoom in
+
+# ===== P3: Collocations (verb + noun strong pairs) =====
+make a decision
+make sense
+make sure
+make progress
+make a difference
+make an effort
+make a mistake
+make a point
+make a promise
+make a choice
+make a contribution
+make an exception
+make an impression
+make a statement
+make assumptions
+make arrangements
+take responsibility
+take action
+take a chance
+take time
+take part
+take a look
+take a break
+take a stand
+take advice
+take notes
+take steps
+take measures
+take pride in
+take pity on
+take offense
+take charge
+have a chance
+have effect
+have impact
+have a tendency
+have a point
+have a way of
+have access
+have authority
+have confidence
+have control
+have faith
+have influence
+have patience
+have respect
+pay attention
+pay tribute
+pay a visit
+pay a compliment
+pay respect
+pay the price
+give priority
+give consideration
+give thought
+give credit
+give rise to
+give weight to
+give voice to
+raise concern
+raise questions
+raise awareness
+raise issues
+raise hopes
+raise eyebrows
+raise standards
+meet expectations
+meet a deadline
+meet a need
+meet demand
+meet a target
+meet a goal
+meet resistance
+meet a challenge
+reach a conclusion
+reach an agreement
+reach a consensus
+reach a peak
+reach a verdict
+reach a settlement
+reach a compromise
+reach an understanding
+draw conclusions
+draw attention
+draw the line
+draw a distinction
+draw a parallel
+draw inspiration
+draw fire
+draw a blank
+gain access
+gain insight
+gain experience
+gain ground
+gain momentum
+gain popularity
+gain recognition
+gain trust
+lose touch
+lose track
+lose interest
+lose face
+lose ground
+lose sight of
+lose momentum
+play a role
+play a part
+play a hand in
+play favorites
+run a business
+run a risk
+run a campaign
+run a test
+carry weight
+carry conviction
+carry a risk
+carry consequences
+bear in mind
+bear responsibility
+bear witness
+bear fruit
+bear the brunt of
+bear the cost of
+shed light
+shed tears
+shed doubt on
+strike a balance
+strike a deal
+strike a chord
+strike a note
+break the news
+break a record
+break the ice
+break a habit
+break the silence
+break ground
+break new ground
+get the impression
+get the feeling
+get the picture
+get the hang of
+get the message
+save time
+save money
+save face
+save lives
+waste time
+waste effort
+waste resources
+spend time
+spend money
+spend energy
+take into account
+take into consideration
+take exception to
+come to terms with
+come to a conclusion
+come to an end
+come to grips with
+come to mind
+come to light
+come to a head
+come into play
+come into force
+come into effect
+come into being
+bring to attention
+bring to a halt
+bring to light
+bring to mind
+bring to bear
+bring to fruition
+put into practice
+put into perspective
+put into effect
+put into words
+put under pressure
+put at risk
+put at stake
+hold a meeting
+hold a discussion
+hold a record
+hold an opinion
+hold a position
+hold a grudge
+keep a record
+keep a promise
+keep an eye on
+keep one's word
+keep one's cool
+keep one's distance
+keep abreast of
+keep up to date
+set a precedent
+set an example
+set a record
+set a goal
+set the tone
+set the stage
+set the bar
+set sights on
+cast doubt on
+cast a vote
+cast a shadow
+cast aspersions
+catch attention
+catch one's eye
+catch a glimpse
+catch on quickly
+shed light on
+throw light on
+voice concern
+voice opposition
+voice support
+express interest
+express gratitude
+express regret
+extend an invitation
+extend gratitude
+issue a statement
+issue a warning
+issue a denial
+launch an investigation
+launch a campaign
+launch a product
+mount a challenge
+mount a defense
+mount an attack
+pose a question
+pose a threat
+pose a challenge
+pose a risk
+raise the bar
+raise the stakes
+lower the bar
+weigh the pros and cons
+weigh the options
+balance the books
+beat the odds
+beat a deadline
+break even
+buy time
+buy in
+sell short
+sell out
+build consensus
+build momentum
+build trust
+build rapport
+build a case
+build bridges
+form a partnership
+form an opinion
+form a habit
+form a plan
+forge ties
+forge a path
+forge ahead
+foster growth
+foster cooperation
+foster innovation
+exceed expectations
+exceed limits
+fulfill expectations
+fulfill a promise
+fulfill a role
+fulfill obligations
+satisfy a requirement
+satisfy demand
+satisfy curiosity
+
+# ===== P4: Idioms (high-frequency C1 register) =====
+at the end of the day
+in the long run
+in the short term
+on the same page
+on the same wavelength
+the elephant in the room
+the tip of the iceberg
+food for thought
+a piece of cake
+under the weather
+over the moon
+on cloud nine
+a long shot
+the bottom line
+the big picture
+once in a blue moon
+every now and then
+by and large
+more or less
+in a nutshell
+in essence
+back to square one
+back to the drawing board
+play it by ear
+play devil's advocate
+jump on the bandwagon
+jump the gun
+hit the ground running
+hit a wall
+hit the nail on the head
+ballpark figure
+gray area
+moving target
+low-hanging fruit
+skin in the game
+the writing is on the wall
+read between the lines
+keep one's options open
+keep one's powder dry
+have one's hands tied
+have one's hands full
+have second thoughts
+have a foot in the door
+go the extra mile
+go down the rabbit hole
+get cold feet
+get the ball rolling
+get a foot in the door
+take the plunge
+take it with a grain of salt
+take a back seat
+take it easy
+take a rain check
+miss the boat
+miss the mark
+hit the road
+hit the books
+hit a roadblock
+hit the sweet spot
+on the fence
+on the same boat
+on the back burner
+on the cards
+on the right track
+off the cuff
+off the record
+out of the loop
+in the loop
+out of the blue
+out of the question
+out of the box
+out of one's depth
+out of one's league
+in the same boat
+in the works
+in the pipeline
+in the cards
+in two minds
+on the spot
+on the dot
+on the fly
+in full swing
+in good shape
+in bad shape
+in line with
+in sync with
+in step with
+behind closed doors
+behind the scenes
+behind the wheel
+beyond a shadow of a doubt
+beyond the pale
+beyond reproach
+beyond compare
+ahead of the curve
+ahead of one's time
+ahead of schedule
+behind the times
+on the cutting edge
+under the radar
+under the gun
+under pressure
+under fire
+above board
+below the belt
+across the board
+across the line
+through the roof
+through thick and thin
+through and through
+without a hitch
+without question
+without fail
+with flying colors
+with bells on
+with a grain of salt
+to be on the safe side
+to err on the side of caution
+to put it mildly
+to put it bluntly
+to say the least
+needless to say
+let alone
+for what it's worth
+for the time being
+for the most part
+for all intents and purposes
+in all honesty
+in all fairness
+in due course
+in due time
+in the meantime
+in the meanwhile
+between you and me
+between a rock and a hard place
+caught in the middle
+caught between two stools
+spread too thin
+stretched thin
+running on fumes
+running on empty
+firing on all cylinders
+in the same vein
+on a different note
+on a side note
+on a related note
+that being said
+that said
+having said that
+all things considered
+all in all
+when all is said and done
+when push comes to shove
+if push comes to shove
+push the envelope
+push back the deadline
+move the goalposts
+move the needle
+
+# ===== P5: Discourse markers + Hedging =====
+
+# Logical connectors
+moreover
+furthermore
+in addition
+what's more
+besides
+also
+likewise
+similarly
+in the same way
+
+# Contrast
+however
+nevertheless
+nonetheless
+on the other hand
+in contrast
+on the contrary
+conversely
+whereas
+while
+although
+even though
+despite
+in spite of
+
+# Cause and effect
+therefore
+hence
+consequently
+accordingly
+thus
+as a result
+as a consequence
+for this reason
+owing to
+due to
+because of
+
+# Emphasis and clarification
+in particular
+particularly
+specifically
+notably
+especially
+notably enough
+in other words
+that is
+namely
+to wit
+to put it another way
+to be more specific
+to clarify
+that is to say
+
+# Summary
+on the whole
+broadly speaking
+generally speaking
+all in all
+in summary
+in conclusion
+to sum up
+to summarize
+all things considered
+when all is said and done
+
+# Context setting
+in light of
+in view of
+given that
+considering that
+with regard to
+with respect to
+as for
+when it comes to
+regarding
+concerning
+as far as X is concerned
+
+# Hedging
+I would argue that
+it could be argued that
+it could be said that
+arguably
+presumably
+supposedly
+seemingly
+apparently
+ostensibly
+I'm inclined to think
+my sense is that
+it seems to me
+it would appear that
+one might say
+one could say
+to some extent
+in a way
+in a sense
+sort of
+kind of
+relatively
+fairly
+somewhat
+more or less
+roughly
+approximately
+
+# Factual emphasis
+in fact
+indeed
+actually
+as a matter of fact
+the fact is
+the truth is
+to be honest
+to be frank
+frankly
+honestly
+to put it plainly
+to be clear
+
+# Examples
+for example
+for instance
+such as
+including
+to illustrate
+take X as an example
+a case in point
+
+# Sequence
+first of all
+to begin with
+firstly
+secondly
+thirdly
+finally
+last but not least
+in the first place
+to start with
+subsequently
+following that
+afterwards
+meanwhile
+
+# Politeness / softening
+with all due respect
+if I may say so
+if you don't mind me asking
+forgive me for saying so
+correct me if I'm wrong
+not to be rude
+no offense
+in my humble opinion
+just my two cents
+just thinking out loud
+
+# ===== P6: Business email / Professional writing =====
+
+# Openers
+I hope this email finds you well
+I hope you are doing well
+I trust this finds you well
+Hope all is well on your end
+I'm writing to inquire about
+I'm writing to follow up on
+I'm writing in regards to
+I wanted to reach out about
+I wanted to touch base on
+I wanted to circle back on
+
+# Requests
+Could you please provide
+Could you kindly clarify
+I would appreciate it if you could
+Would it be possible to
+At your earliest convenience
+When you have a moment
+If you could spare a few minutes
+I'd be grateful if
+
+# Attachments and references
+Please find attached
+Attached please find
+As per our discussion
+As discussed
+As agreed
+Per your request
+Following our conversation
+Further to our meeting
+As outlined in
+As mentioned earlier
+As stated below
+
+# Closing
+Looking forward to hearing from you
+I look forward to your response
+Thank you for your prompt response
+Thank you for your time
+Thank you in advance
+Please let me know if you have any questions
+Don't hesitate to reach out
+Feel free to reach out
+Best regards
+Kind regards
+Warm regards
+Sincerely
+
+# Status updates
+I wanted to give you a quick update
+By way of update
+To update you on
+A quick status update
+The current status is
+We are on track to
+We are on schedule
+We are slightly behind
+We are ahead of schedule
+The next milestone is
+The expected delivery is
+
+# Apology / addressing issues
+I apologize for the delay
+My apologies for the late response
+I'm sorry for the inconvenience
+Please accept my apologies
+I regret to inform you
+Unfortunately
+Regrettably
+I appreciate your patience
+Thank you for your understanding
+
+# Pushback / negotiation
+With respect, I would suggest
+I'd like to push back on
+I have some concerns about
+I'd like to explore alternatives
+Could we revisit this
+I'd like to propose
+What if we
+Have we considered
+On a related note
+For context
+
+# Confirmations
+Just confirming
+To confirm
+Confirming receipt
+Acknowledged
+Understood
+Noted
+Got it
+Will do
+Consider it done
+That works for me
+That sounds good
+
+# Scheduling
+Could we set up a time to
+Are you available
+Does X work for you
+Could we sync on
+Let's schedule a call
+A 30-minute meeting would suffice
+Pencil it in
+Let me check my calendar
+I'll send a calendar invite
+
+# Closing summary phrases
+In summary
+To summarize the key points
+The key takeaways are
+The main action items are
+Next steps include
+Going forward
+Moving forward
+With that in mind
+That being said
+On that note
