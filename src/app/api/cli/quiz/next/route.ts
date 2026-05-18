@@ -7,8 +7,18 @@ export const runtime = "nodejs";
 // GET /api/cli/quiz/next?count=3&card_type=word
 // Pulls the next-due cards for the brainstorming-side quiz. Prefers
 // "review" cards (highest learning leverage) then "learning" then "new".
-// Returns the minimal payload needed to show a card in chat plus the
-// audio_url for macOS `say` playback.
+//
+// For expression cards, only chat-organic (curriculum_source = "chat-
+// organic") gets surfaced — the bulk-imported curriculum phrases sit in
+// /review/typing for production drill and shouldn't crowd the chat
+// quiz, which is meant to recycle what the user actually used in this
+// or a recent Claude Code session.
+const CARD_COLUMNS =
+  "id, card_type, word, reading, part_of_speech, definition_ja, definition_en, example_en, example_ja, audio_url, difficulty, curriculum_source, derivation_type, family_pack_id, status, repetitions, interval_days, ease_factor, next_review_at";
+
+const CHAT_FILTER =
+  "card_type.eq.word,and(card_type.eq.expression,curriculum_source.eq.chat-organic)";
+
 export async function GET(req: NextRequest) {
   const a = requireAuth(req);
   if (!a.ok) return a.res;
@@ -24,40 +34,48 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminClient();
   const nowIso = new Date().toISOString();
 
-  let q = supabase
+  let dueQuery = supabase
     .from("cards")
-    .select(
-      "id, card_type, word, reading, part_of_speech, definition_ja, definition_en, example_en, example_ja, audio_url, difficulty, curriculum_source, derivation_type, family_pack_id, status, repetitions, interval_days, ease_factor, next_review_at"
-    )
+    .select(CARD_COLUMNS)
     .eq("user_id", userId)
     .neq("status", "suspended")
     .lte("next_review_at", nowIso)
     .order("next_review_at", { ascending: true })
     .limit(count);
-  if (cardType === "word" || cardType === "expression") {
-    q = q.eq("card_type", cardType);
+  if (cardType === "word") {
+    dueQuery = dueQuery.eq("card_type", "word");
+  } else if (cardType === "expression") {
+    dueQuery = dueQuery
+      .eq("card_type", "expression")
+      .eq("curriculum_source", "chat-organic");
+  } else {
+    dueQuery = dueQuery.or(CHAT_FILTER);
   }
 
-  const { data: due, error: dueErr } = await q;
+  const { data: due, error: dueErr } = await dueQuery;
   if (dueErr) {
     return NextResponse.json({ error: dueErr.message }, { status: 500 });
   }
 
   let cards = due ?? [];
   if (cards.length < count) {
-    let nq = supabase
+    let newQuery = supabase
       .from("cards")
-      .select(
-        "id, card_type, word, reading, part_of_speech, definition_ja, definition_en, example_en, example_ja, audio_url, difficulty, curriculum_source, derivation_type, family_pack_id, status, repetitions, interval_days, ease_factor, next_review_at"
-      )
+      .select(CARD_COLUMNS)
       .eq("user_id", userId)
       .eq("status", "new")
       .order("created_at", { ascending: true })
       .limit(count - cards.length);
-    if (cardType === "word" || cardType === "expression") {
-      nq = nq.eq("card_type", cardType);
+    if (cardType === "word") {
+      newQuery = newQuery.eq("card_type", "word");
+    } else if (cardType === "expression") {
+      newQuery = newQuery
+        .eq("card_type", "expression")
+        .eq("curriculum_source", "chat-organic");
+    } else {
+      newQuery = newQuery.or(CHAT_FILTER);
     }
-    const { data: news } = await nq;
+    const { data: news } = await newQuery;
     if (news) cards = [...cards, ...news];
   }
 
