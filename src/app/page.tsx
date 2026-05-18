@@ -59,6 +59,7 @@ export default async function Home() {
     newIntrosToday,
     leechCount,
     typingPoolRes,
+    phraseTypingPoolRes,
     contextPoolRes,
     rootPoolRes,
     tomorrowAddsRes,
@@ -122,9 +123,17 @@ export default async function Home() {
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .in("card_type", ["word", "expression"])
+      .eq("card_type", "word")
       .neq("status", "suspended")
       .gte("interval_days", TYPING_MIN_INTERVAL),
+    // Phrases skip the 14-day gate — production-first by design, see
+    // /review/typing/page.tsx for the matching query.
+    supabase
+      .from("cards")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("card_type", "expression")
+      .neq("status", "suspended"),
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
@@ -203,7 +212,9 @@ export default async function Home() {
 
   const reviewDue = reviewDueRes.count ?? 0;
   const newAvailable = newAvailRes.count ?? 0;
-  const typingPool = typingPoolRes.count ?? 0;
+  const wordTypingPool = typingPoolRes.count ?? 0;
+  const phraseTypingPool = phraseTypingPoolRes.count ?? 0;
+  const typingPool = wordTypingPool + phraseTypingPool;
   const contextPool = contextPoolRes.count ?? 0;
   const rootPool = rootPoolRes.count ?? 0;
   const total = totalRes.count ?? 0;
@@ -452,11 +463,14 @@ export default async function Home() {
             <Keyboard size={14} className="text-accent shrink-0" />
             <div className="flex flex-col min-w-0 flex-1">
               <span className="text-[9px] uppercase tracking-widest text-accent font-semibold">
-                英訳ドリル
+                英訳ドリル · 日 → 英
               </span>
               <span className="text-[12px]">
-                <span className="font-semibold tabular-nums">{typingPool}</span>
-                <span className="text-muted"> 枚から定着テスト</span>
+                <span className="text-muted">単語 </span>
+                <span className="font-semibold tabular-nums">{wordTypingPool}</span>
+                <span className="text-muted"> / フレーズ </span>
+                <span className="font-semibold tabular-nums">{phraseTypingPool}</span>
+                <span className="text-muted"> 枚</span>
               </span>
             </div>
             <ArrowRight
