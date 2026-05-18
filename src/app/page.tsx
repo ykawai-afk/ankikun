@@ -126,13 +126,14 @@ export default async function Home() {
       .eq("card_type", "word")
       .neq("status", "suspended")
       .gte("interval_days", TYPING_MIN_INTERVAL),
-    // Phrases skip the 14-day gate — production-first by design, see
-    // /review/typing/page.tsx for the matching query.
+    // Phrases skip the 14-day gate — production-first by design. Match
+    // /review/typing/page.tsx exactly: chat-organic only.
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
       .eq("card_type", "expression")
+      .eq("curriculum_source", "chat-organic")
       .neq("status", "suspended"),
     supabase
       .from("cards")

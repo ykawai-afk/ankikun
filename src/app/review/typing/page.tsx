@@ -20,6 +20,11 @@ export default async function TypingPage() {
   // Phrases skip the interval gate: production-first is the design — knowing
   // a phrase passively in 14 days is too slow, the whole point of an
   // expression card is that it should come out of your mouth/keyboard now.
+  //
+  // Restrict expressions to chat-organic (phrases the user actually used in
+  // a Claude Code chat). Bulk curriculum phrases sit dormant until the
+  // user re-encounters them via chat — surfacing them in the daily drill
+  // dilutes the signal of "I used this with Claude".
   const [wordRes, phraseRes] = await Promise.all([
     supabase
       .from("cards")
@@ -35,6 +40,7 @@ export default async function TypingPage() {
       .select(CARD_COLUMNS)
       .eq("user_id", userId)
       .eq("card_type", "expression")
+      .eq("curriculum_source", "chat-organic")
       .neq("status", "suspended")
       .limit(200)
       .returns<Card[]>(),
