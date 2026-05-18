@@ -81,26 +81,36 @@ export default async function Home() {
       .eq("card_type", "word")
       .eq("status", "new")
       .lte("next_review_at", now),
+    // TOTAL / ACTIVE / MASTERED only count cards in the daily flow
+    // (words + chat-organic phrases). The 930 bulk curriculum phrases
+    // are dormant — including them in the denominator made the mastery
+    // % unreachable.
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .in("card_type", ["word", "expression"]),
-    // Active denominator (non-suspended). Mastered % compares mastered against
-    // what the user is actually still studying, not against lifetime cards.
+      .or(
+        "card_type.eq.word,and(card_type.eq.expression,curriculum_source.eq.chat-organic)"
+      ),
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .in("card_type", ["word", "expression"])
+      .or(
+        "card_type.eq.word,and(card_type.eq.expression,curriculum_source.eq.chat-organic)"
+      )
       .neq("status", "suspended"),
-    // Mastered = interval ≥ 21d OR was_intro_easy. Matches isMastered()
-    // in src/lib/mastery.ts so the count here aligns with stats.
+    // Mastered = interval ≥ 21d OR was_intro_easy. The interval_days
+    // condition lives inside an inner or(...) so it doesn't collide
+    // with the outer card-type or(); PostgREST allows nested or() and
+    // resolves the conjunction at the outer scope.
     supabase
       .from("cards")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .in("card_type", ["word", "expression"])
+      .or(
+        "card_type.eq.word,and(card_type.eq.expression,curriculum_source.eq.chat-organic)"
+      )
       .neq("status", "suspended")
       .or(`interval_days.gte.${MASTERED_THRESHOLD_DAYS},was_intro_easy.eq.true`),
     // 100-day window; paginated so a power week with >1000 reviews
@@ -322,12 +332,6 @@ export default async function Home() {
             )}
           </Link>
         </section>
-
-        {todayDone && (
-          <div className="h-10 rounded-xl bg-success-soft border border-success/20 flex items-center justify-center text-success text-xs font-medium">
-            🎉 今日のノルマ完了 — また明日
-          </div>
-        )}
 
         {leechCount > 0 && (
           <Link
